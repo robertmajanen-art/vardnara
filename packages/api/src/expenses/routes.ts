@@ -1,14 +1,14 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { tenantMiddleware } from '../middleware/tenant'
-import { PrismaMembershipRepo } from '../repos/membership'
+import { Role, type MembershipRepository } from '../types/index'
 import { CreateExpenseBody, UpdateExpenseBody } from './schemas'
 
 export const expenseRoutes: FastifyPluginAsync = async (fastify) => {
   const db = fastify.prisma
-  const membershipRepo = new PrismaMembershipRepo(db)
-  const tenant = tenantMiddleware(membershipRepo)
-  const tenantSupporter = tenantMiddleware(membershipRepo, 'SUPPORTER')
-  const tenantLead = tenantMiddleware(membershipRepo, 'LEAD')
+  const repo = db.membership as unknown as MembershipRepository
+  const tenant = tenantMiddleware(repo)
+  const tenantSupporter = tenantMiddleware(repo, Role.SUPPORTER)
+  const tenantLead = tenantMiddleware(repo, Role.LEAD)
 
   // GET /:groupId/expenses/summary — totals by category (must be before /:id)
   fastify.get<{ Params: { groupId: string }; Querystring: { from?: string; to?: string } }>(
