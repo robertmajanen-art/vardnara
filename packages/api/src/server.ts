@@ -18,9 +18,10 @@ await server.register(fastifyCors, {
 
 await server.register(fastifyCookie)
 
-await server.register(fastifyJwt, {
-  secret: process.env['JWT_SECRET'] ?? (() => { throw new Error('JWT_SECRET is required') })(),
-})
+const jwtSecret = process.env['JWT_SECRET']
+if (!jwtSecret) throw new Error('JWT_SECRET environment variable is required')
+
+await server.register(fastifyJwt, { secret: jwtSecret })
 
 // Decorate with authenticate hook so route handlers can use { onRequest: [fastify.authenticate] }
 server.decorate('authenticate', async function (request: Parameters<typeof server.authenticate>[0], reply: Parameters<typeof server.authenticate>[1]) {

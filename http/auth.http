@@ -1,0 +1,65 @@
+# VårdNära API — Auth endpoints
+# Requires VS Code REST Client extension, or paste into Postman/Insomnia
+# -------------------------------------------------------------------
+
+@baseUrl = http://localhost:4000
+
+### Health check
+GET {{baseUrl}}/health
+
+###
+
+# ── US-01: Register ──────────────────────────────────────────────
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "hemligt123"
+}
+
+###
+
+# ── US-01: Login ─────────────────────────────────────────────────
+# Sets refresh_token httpOnly cookie automatically
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "hemligt123"
+}
+
+###
+
+# ── US-02: Refresh access token ──────────────────────────────────
+# The refresh_token cookie is sent automatically by the client
+POST {{baseUrl}}/api/auth/refresh
+
+###
+
+# ── Logout ───────────────────────────────────────────────────────
+POST {{baseUrl}}/api/auth/logout
+
+###
+
+# ── Verify email ─────────────────────────────────────────────────
+# Paste the token printed in the API log after registering
+GET {{baseUrl}}/api/auth/verify-email?token=PASTE_TOKEN_FROM_LOG
+
+###
+
+# ── TOTP setup (requires Authorization header from login) ────────
+POST {{baseUrl}}/api/auth/totp/setup
+Authorization: Bearer PASTE_ACCESS_TOKEN_HERE
+
+###
+
+# ── TOTP enable ──────────────────────────────────────────────────
+POST {{baseUrl}}/api/auth/totp/enable
+Authorization: Bearer PASTE_ACCESS_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "code": "123456"
+}
