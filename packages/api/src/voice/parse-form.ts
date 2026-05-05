@@ -64,12 +64,14 @@ export const voiceParseFormRoute: FastifyPluginAsync = async (fastify) => {
       messages: [{ role: 'user', content: body.transcript }],
     })
 
-    const text = message.content[0]?.type === 'text' ? message.content[0].text : ''
+    const raw = message.content[0]?.type === 'text' ? message.content[0].text : ''
+    // Strip markdown code fences if Claude wrapped the JSON in ```json ... ```
+    const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
     let parsed: unknown
     try {
       parsed = JSON.parse(text)
     } catch {
-      return reply.code(422).send({ statusCode: 422, error: 'Unprocessable Entity', message: 'AI returnerade ogiltigt svar', raw: text })
+      return reply.code(422).send({ statusCode: 422, error: 'Unprocessable Entity', message: 'AI returnerade ogiltigt svar', raw })
     }
 
     return reply.send(parsed)
