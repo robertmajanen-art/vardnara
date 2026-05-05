@@ -23,13 +23,6 @@ type ParsedJournal = {
   tags?: string[]
 }
 
-declare global {
-  interface Window {
-    SpeechRecognition: typeof SpeechRecognition
-    webkitSpeechRecognition: typeof SpeechRecognition
-  }
-}
-
 export default function NewJournalPage({ params }: { params: { groupId: string } }) {
   const router = useRouter()
   const [entryType, setEntryType] = useState<string>('NOTE')
@@ -40,10 +33,12 @@ export default function NewJournalPage({ params }: { params: { groupId: string }
   const [error, setError] = useState('')
   const [listening, setListening] = useState(false)
   const [parsing, setParsing] = useState(false)
-  const recognitionRef = useRef<SpeechRecognition | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null)
 
   function startVoice() {
-    const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition
     if (!SR) { setError('Din webbläsare stöder inte röstinmatning.'); return }
     const rec = new SR()
     rec.lang = 'sv-SE'

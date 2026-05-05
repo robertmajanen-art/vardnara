@@ -22,13 +22,6 @@ const ENTRY_TYPE_LABELS: Record<string, string> = {
   HEALTH_UPDATE: 'Hälsouppdatering',
 }
 
-declare global {
-  interface Window {
-    SpeechRecognition: typeof SpeechRecognition
-    webkitSpeechRecognition: typeof SpeechRecognition
-  }
-}
-
 type Phase = 'idle' | 'listening' | 'parsing' | 'preview' | 'saving' | 'error'
 
 export default function VoiceJournalPage({ params }: { params: { groupId: string } }) {
@@ -41,11 +34,13 @@ export default function VoiceJournalPage({ params }: { params: { groupId: string
   const [body, setBody] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [errorMsg, setErrorMsg] = useState('')
-  const recognitionRef = useRef<SpeechRecognition | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null)
   const transcriptRef = useRef('')
 
   function startListening() {
-    const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition
     if (!SR) { setErrorMsg('Din webbläsare stöder inte röstinmatning.'); setPhase('error'); return }
     const rec = new SR()
     rec.lang = 'sv-SE'
