@@ -2,7 +2,7 @@ name: Deploy API to Azure
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - 'packages/api/**'
       - 'packages/types/**'
