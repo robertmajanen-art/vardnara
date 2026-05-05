@@ -43,15 +43,14 @@ jobs:
       - name: Package deployment artifact
         run: |
           mkdir -p deploy_pkg
-          cp packages/api/dist/server.bundle.js deploy_pkg/
-          # Include start script so Azure can run: npm start
+          cp packages/api/dist/server.bundle.cjs deploy_pkg/
+          # CJS bundle — no "type": "module" needed
           cat > deploy_pkg/package.json << 'EOF'
           {
             "name": "vardnara-api",
             "version": "0.1.0",
-            "type": "module",
             "scripts": {
-              "start": "node server.bundle.js"
+              "start": "node server.bundle.cjs"
             }
           }
           EOF
@@ -62,7 +61,7 @@ jobs:
           ls -lah deploy_pkg/
           ls -lah deploy_pkg/node_modules/.prisma/client/
           cd deploy_pkg && zip -r ../api-deploy.zip . && cd ..
-          echo "Zip size: $(du -sh ../api-deploy.zip 2>/dev/null || du -sh api-deploy.zip)"
+          echo "Zip size: $(du -sh api-deploy.zip)"
 
       - name: Log in to Azure
         uses: azure/login@v2
@@ -74,7 +73,7 @@ jobs:
           az webapp config set \
             --name ${{ env.AZURE_WEBAPP_NAME }} \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --startup-file "node server.bundle.js"
+            --startup-file "node server.bundle.cjs"
 
       - name: Deploy to Azure App Service
         run: |
