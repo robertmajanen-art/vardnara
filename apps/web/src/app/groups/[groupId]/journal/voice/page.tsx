@@ -38,39 +38,63 @@ export default function VoiceJournalPage({ params }: { params: { groupId: string
   const recognitionRef = useRef<any>(null)
   const transcriptRef = useRef('')
   const finishingRef = useRef(false)
+  const phaseRef = useRef<Phase>('idle')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const SRRef = useRef<any>(null)
 
-  function startListening() {
+  function setPhaseSync(p: Phase) {
+    phaseRef.current = p
+    setPhase(p)
+  }
+
+  function createRecognition() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition
-    if (!SR) { setErrorMsg('Din webbläsare stöder inte röstinmatning.'); setPhase('error'); return }
+    const SR = SRRef.current ?? (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition
+    if (!SR) return null
+    SRRef.current = SR
     const rec = new SR()
     rec.lang = 'sv-SE'
     rec.continuous = true
     rec.interimResults = true
     rec.maxAlternatives = 1
-    recognitionRef.current = rec
-    transcriptRef.current = ''
-    finishingRef.current = false
-    setPhase('listening')
-    setTranscript('')
-    rec.start()
     rec.onresult = (e: { results: ArrayLike<{ [k: number]: { transcript: string } }> }) => {
       const interim = Array.from(e.results).map((r) => r[0]?.transcript ?? '').join(' ')
       transcriptRef.current = interim
       setTranscript(interim)
     }
-    rec.onerror = () => { setPhase('error'); setErrorMsg('Röstinspelning misslyckades.') }
-    rec.onend = () => {
-      if (finishingRef.current) finishListening()
+    rec.onerror = (e: { error: string }) => {
+      if (e.error === 'no-speech') return // ignore no-speech, onend will restart
+      setPhaseSync('error')
+      setErrorMsg('Röstinspelning misslyckades.')
     }
+    rec.onend = () => {
+      if (finishingRef.current) {
+        finishListening()
+      } else if (phaseRef.current === 'listening') {
+        // Browser auto-stopped — restart immediately to keep listening
+        try { rec.start() } catch { /* already started */ }
+      }
+    }
+    return rec
+  }
+
+  function startListening() {
+    const rec = createRecognition()
+    if (!rec) { setErrorMsg('Din webbläsare stöder inte röstinmatning.'); setPhaseSync('error'); return }
+    recognitionRef.current = rec
+    transcriptRef.current = ''
+    finishingRef.current = false
+    setPhaseSync('listening')
+    setTranscript('')
+    rec.start()
   }
 
   async function finishListening() {
-    setPhase('parsing')
+    setPhaseSync('parsing')
     const currentTranscript = transcriptRef.current.trim()
     if (!currentTranscript) {
       setErrorMsg('Inget tal registrerades. Försök igen.')
-      setPhase('error')
+      setPhaseSync('error')
       return
     }
     try {
@@ -81,24 +105,27 @@ export default function VoiceJournalPage({ params }: { params: { groupId: string
         setTitle(result.title ?? '')
         setBody(result.body ?? '')
         setTags(result.tags ?? [])
-        setPhase('preview')
+        setPhaseSync('preview')
       } else {
         setErrorMsg('Röstmeddelandet tolkades inte som en dagbokspost. Försök igen.')
-        setPhase('error')
+        setPhaseSync('error')
       }
     } catch {
       setErrorMsg('Kunde inte tolka röstmeddelandet.')
-      setPhase('error')
+      setPhaseSync('error')
     }
   }
 
   function handleStop() {
     finishingRef.current = true
     recognitionRef.current?.stop()
+    // If recognition already stopped (auto-stop), finishListening won't be triggered by onend
+    // so call it directly if we're still in listening phase
+    if (phaseRef.current === 'listening') finishListening()
   }
 
   async function handleSave() {
-    setPhase('saving')
+    setPhaseSync('saving')
     try {
       await api.post(`/api/groups/${params.groupId}/journal`, {
         entryType,
@@ -110,7 +137,7 @@ export default function VoiceJournalPage({ params }: { params: { groupId: string
       router.push(`/groups/${params.groupId}/journal`)
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'Sparning misslyckades.')
-      setPhase('error')
+      setPhaseSync('error')
     }
   }
 
@@ -191,7 +218,7 @@ export default function VoiceJournalPage({ params }: { params: { groupId: string
 
           <div className={styles.actions}>
             <button className={styles.saveBtn} onClick={handleSave}>Spara post</button>
-            <button className={styles.retryBtn} onClick={() => { setParsed(null); setTranscript(''); setPhase('idle') }}>
+            <button className={styles.retryBtn} onClick={() => { setParsed(null); setTranscript(''); setPhaseSync('idle') }}>
               Spela in igen
             </button>
           </div>

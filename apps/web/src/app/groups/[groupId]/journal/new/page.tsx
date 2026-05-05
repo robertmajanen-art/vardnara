@@ -36,49 +36,71 @@ export default function NewJournalPage({ params }: { params: { groupId: string }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null)
   const accumulatedRef = useRef('')
+  const stoppingRef = useRef(false)
+  const listeningRef = useRef(false)
 
   function startVoice() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition
     if (!SR) { setError('Din webbläsare stöder inte röstinmatning.'); return }
-    const rec = new SR()
-    rec.lang = 'sv-SE'
-    rec.continuous = true
-    rec.interimResults = false
-    rec.maxAlternatives = 1
     accumulatedRef.current = ''
+    stoppingRef.current = false
+    listeningRef.current = true
+
+    function makeRec() {
+      const rec = new SR()
+      rec.lang = 'sv-SE'
+      rec.continuous = true
+      rec.interimResults = false
+      rec.maxAlternatives = 1
+      rec.onresult = (e: { results: ArrayLike<{ [k: number]: { transcript: string } }> }) => {
+        accumulatedRef.current = Array.from(e.results).map((r) => r[0]?.transcript ?? '').join(' ')
+      }
+      rec.onerror = (e: { error: string }) => {
+        if (e.error === 'no-speech') return
+        listeningRef.current = false
+        setListening(false)
+        setError('Röstinspelning misslyckades.')
+      }
+      rec.onend = async () => {
+        if (!stoppingRef.current && listeningRef.current) {
+          // Browser auto-stopped — restart to keep listening
+          try { const r = makeRec(); recognitionRef.current = r; r.start() } catch { /* ignore */ }
+          return
+        }
+        listeningRef.current = false
+        setListening(false)
+        const transcript = accumulatedRef.current.trim()
+        if (!transcript) return
+        setParsing(true)
+        try {
+          const parsed = await api.post<ParsedJournal>('/api/voice/parse-form', { transcript })
+          if (parsed.formType === 'journal') {
+            if (parsed.entryType && ENTRY_TYPES.includes(parsed.entryType as never)) setEntryType(parsed.entryType)
+            if (parsed.title) setTitle(parsed.title)
+            if (parsed.body) setBody(parsed.body)
+            if (parsed.tags?.length) setTagsInput(parsed.tags.join(', '))
+          } else {
+            setError('Kunde inte tolka som dagbokspost. Försök igen.')
+          }
+        } catch {
+          setError('Röstparsning misslyckades.')
+        } finally {
+          setParsing(false)
+        }
+      }
+      return rec
+    }
+
+    const rec = makeRec()
     recognitionRef.current = rec
     setListening(true)
     setError('')
     rec.start()
-    rec.onresult = (e: { results: ArrayLike<{ [k: number]: { transcript: string } }> }) => {
-      accumulatedRef.current = Array.from(e.results).map((r) => r[0]?.transcript ?? '').join(' ')
-    }
-    rec.onerror = () => { setListening(false); setError('Röstinspelning misslyckades.') }
-    rec.onend = async () => {
-      setListening(false)
-      const transcript = accumulatedRef.current.trim()
-      if (!transcript) return
-      setParsing(true)
-      try {
-        const parsed = await api.post<ParsedJournal>('/api/voice/parse-form', { transcript })
-        if (parsed.formType === 'journal') {
-          if (parsed.entryType && ENTRY_TYPES.includes(parsed.entryType as never)) setEntryType(parsed.entryType)
-          if (parsed.title) setTitle(parsed.title)
-          if (parsed.body) setBody(parsed.body)
-          if (parsed.tags?.length) setTagsInput(parsed.tags.join(', '))
-        } else {
-          setError('Kunde inte tolka som dagbokspost. Försök igen.')
-        }
-      } catch {
-        setError('Röstparsning misslyckades.')
-      } finally {
-        setParsing(false)
-      }
-    }
   }
 
   function stopVoice() {
+    stoppingRef.current = true
     recognitionRef.current?.stop()
   }
 
