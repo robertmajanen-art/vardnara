@@ -17,6 +17,8 @@ import { taskRoutes } from './tasks/routes'
 import { recurringTaskRoutes } from './recurring-tasks/routes'
 import { feedRoutes } from './feed/routes'
 import { displayTokenRoutes, publicDisplayRoute } from './display/routes'
+import { journalRoutes } from './journal/routes'
+import { expenseRoutes } from './expenses/routes'
 import { startAlarmCron } from './jobs/alarmCron'
 
 console.log('[startup] Fastify init')
@@ -75,6 +77,8 @@ await server.register(recurringTaskRoutes, { prefix: '/api/groups' })
 await server.register(feedRoutes, { prefix: '/api/groups' })
 await server.register(displayTokenRoutes, { prefix: '/api/groups' })
 await server.register(publicDisplayRoute, { prefix: '/api/display' })
+await server.register(journalRoutes, { prefix: '/api/groups' })
+await server.register(expenseRoutes, { prefix: '/api/groups' })
 
 server.get('/health', async () => ({ ok: true, ts: new Date().toISOString() }))
 

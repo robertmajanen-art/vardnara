@@ -42,6 +42,7 @@ apps/mobile/android/
 apps/mobile/ios/
 
 # Azure
-azure/publish-profile.xml
-azure/azure-credentials.json
+azure/
+deploy_pkg/
 api-deploy.zip
+web-deploy.zip
