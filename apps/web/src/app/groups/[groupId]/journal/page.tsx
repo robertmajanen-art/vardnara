@@ -61,7 +61,10 @@ export default function JournalPage({ params }: { params: { groupId: string } })
     <div className={styles.page}>
       <header className={styles.header}>
         <h1>Dagbok</h1>
-        <a href={`/groups/${params.groupId}/journal/new`} className={styles.addBtn}>+ Ny post</a>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <a href={`/groups/${params.groupId}/journal/voice`} className={styles.addBtn} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}>🎤 Röst</a>
+          <a href={`/groups/${params.groupId}/journal/new`} className={styles.addBtn}>+ Ny post</a>
+        </div>
       </header>
 
       <div className={styles.filters}>
