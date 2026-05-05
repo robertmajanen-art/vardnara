@@ -9,6 +9,8 @@ on:
       - 'packages/utils/**'
       - 'packages/types/**'
       - 'packages/locales/**'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/deploy-web.yml'
   workflow_dispatch:
 
