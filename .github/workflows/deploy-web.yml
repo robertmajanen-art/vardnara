@@ -47,11 +47,8 @@ jobs:
           mkdir -p web_deploy_pkg/apps/web/public
           cp -r apps/web/public/. web_deploy_pkg/apps/web/public/ 2>/dev/null || true
           cp -r apps/web/.next/static web_deploy_pkg/apps/web/.next/static
-          cat > web_deploy_pkg/start.js << 'EOF'
-          process.chdir(__dirname + '/apps/web')
-          require('./server.js')
-          EOF
-          echo "--- Package contents ---"
+          echo "--- Standalone structure ---"
+          find web_deploy_pkg -maxdepth 4 -name "server.js"
           ls -lah web_deploy_pkg/
           cd web_deploy_pkg && zip -r ../web-deploy.zip . && cd ..
           echo "Zip size: $(du -sh web-deploy.zip)"
@@ -66,7 +63,7 @@ jobs:
           az webapp config set \
             --name ${{ env.AZURE_WEBAPP_NAME }} \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --startup-file "node start.js"
+            --startup-file "node apps/web/server.js"
 
       - name: Deploy to Azure App Service
         run: |
