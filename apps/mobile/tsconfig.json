@@ -1,0 +1,12 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@vardnara/types": ["../../packages/types/src/index.ts"],
+      "@vardnara/utils": ["../../packages/utils/src/index.ts"],
+      "@vardnara/ui": ["../../packages/ui/src/index.ts"],
+      "@/*": ["./*"]
+    }
+  }
+}

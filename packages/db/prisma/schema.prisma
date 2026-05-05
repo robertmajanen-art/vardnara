@@ -1,0 +1,564 @@
+// =============================================================================
+// Prisma Schema — Family Care Coordination App
+// Multi-tenant, row-level isolation by CareGroup (tenantId)
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum CareType {
+  DEMENTIA
+  NPF        // autism, ADHD, etc.
+  OTHER
+}
+
+enum Role {
+  LEAD        // samordnare — full access, can invite, assign, configure
+  SUPPORTER   // stödjare — can create/edit most content
+  OBSERVER    // följare — read-only access to feed and calendar
+  EXTERNAL    // external professional — read-only, invited per event
+}
+
+enum AppointmentType {
+  HEALTHCARE   // sjukvård
+  SCHOOL       // skola
+  SOCIAL       // socialtjänst
+  THERAPY      // terapi
+  FAMILY       // familj
+  OTHER
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  OVERDUE
+}
+
+enum RecurrencePattern {
+  NONE
+  DAILY
+  WEEKLY
+  MONTHLY
+  CUSTOM     // cron expression stored in recurrenceCron field
+}
+
+enum JournalEntryType {
+  NOTE
+  OBSERVATION
+  INCIDENT
+  MOOD
+  HEALTH_UPDATE
+  APPOINTMENT_OUTCOME  // auto-created when appointment outcome is added
+  ACTIVITY_CONFIRMED   // auto-created when recurring task is confirmed on display
+}
+
+enum ExpenseCategory {
+  MEDICATION
+  FOOD
+  TRANSPORT
+  EQUIPMENT
+  SERVICES
+  INSURANCE
+  OTHER
+}
+
+enum DocumentCategory {
+  MEDICAL
+  LEGAL
+  SCHOOL
+  FINANCIAL
+  INSURANCE
+  OTHER
+}
+
+enum NotificationType {
+  APPOINTMENT_REMINDER     // upcoming appointment
+  APPOINTMENT_ASSIGNED     // you were assigned to an appointment
+  APPOINTMENT_DECLINED     // assignee declined
+  TASK_ASSIGNED
+  TASK_OVERDUE
+  ACTIVITY_MISSED          // recurring task not confirmed in time
+  JOURNAL_ENTRY            // new journal entry added
+  EXPENSE_ADDED
+  DOCUMENT_ADDED
+  URGENT_ALERT             // one-tap urgent alert from lead
+  MEMBER_JOINED
+  OUTCOME_ADDED
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+enum Plan {
+  FREE
+  PRO
+}
+
+// =============================================================================
+// USER
+// =============================================================================
+
+model User {
+  id                String         @id @default(uuid())
+  email             String         @unique
+  emailVerified     Boolean        @default(false)
+  emailVerifyToken  String?        @unique
+  passwordHash      String
+  totpSecret        String?        // 2FA — required for LEAD role
+  totpEnabled       Boolean        @default(false)
+  refreshTokens     RefreshToken[]
+  memberships       Membership[]
+  invitesSent       Invite[]       @relation("InvitedBy")
+  notifications     Notification[]
+  journalEntries    JournalEntry[]
+  tasksAssigned     Task[]         @relation("TaskAssignee")
+  tasksCreated      Task[]         @relation("TaskCreator")
+  appointmentsAssigned Appointment[] @relation("AppointmentAssignee")
+  appointmentsCreated  Appointment[] @relation("AppointmentCreator")
+  expensesCreated   Expense[]
+  documentsUploaded Document[]
+  activitiesConfirmed RecurringTaskLog[] @relation("ConfirmedBy")
+  auditLogs         AuditLog[]
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// =============================================================================
+// TENANT — CARE GROUP
+// =============================================================================
+
+model CareGroup {
+  id                 String          @id @default(uuid())
+  name               String          // e.g. "Birgittas familj"
+  recipientName      String          // name of the care recipient
+  recipientDob       DateTime?
+  careType           CareType
+  plan               Plan            @default(FREE)
+  members            Membership[]
+  invites            Invite[]
+  appointments       Appointment[]
+  tasks              Task[]
+  recurringTasks     RecurringTask[]
+  journalEntries     JournalEntry[]
+  expenses           Expense[]
+  documents          Document[]
+  displayTokens      DisplayToken[]
+  notifications      Notification[]
+  feedItems          FeedItem[]
+  auditLogs          AuditLog[]
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+}
+
+// Membership = User ↔ CareGroup join with role
+// This is the tenant isolation anchor — every data query checks this table
+model Membership {
+  id        String    @id @default(uuid())
+  userId    String
+  groupId   String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group     CareGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  role      Role
+  joinedAt  DateTime  @default(now())
+
+  @@unique([userId, groupId])
+  @@index([groupId])
+  @@index([userId])
+}
+
+model Invite {
+  id          String       @id @default(uuid())
+  groupId     String
+  group       CareGroup    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  invitedById String
+  invitedBy   User         @relation("InvitedBy", fields: [invitedById], references: [id])
+  email       String?      // invite by email
+  phone       String?      // invite by SMS
+  role        Role
+  token       String       @unique @default(uuid())
+  status      InviteStatus @default(PENDING)
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime     @default(now())
+
+  @@index([groupId])
+  @@index([token])
+}
+
+// =============================================================================
+// DISPLAY TOKEN — ambient wall screen, no login required
+// =============================================================================
+
+model DisplayToken {
+  id              String    @id @default(uuid())
+  groupId         String
+  group           CareGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  token           String    @unique @default(uuid())
+  label           String    @default("Hemskärm") // e.g. "Vardagsrumsskärm"
+  lookaheadHours  Int       @default(24)         // how many hours ahead to show appointments
+  volume          Int       @default(60)          // alarm volume 0–100
+  isActive        Boolean   @default(true)
+  revokedAt       DateTime?
+  lastSeenAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([groupId])
+  @@index([token])
+}
+
+// =============================================================================
+// CALENDAR & APPOINTMENTS
+// =============================================================================
+
+model Appointment {
+  id              String          @id @default(uuid())
+  groupId         String
+  group           CareGroup       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdById     String
+  createdBy       User            @relation("AppointmentCreator", fields: [createdById], references: [id])
+  assigneeId      String?
+  assignee        User?           @relation("AppointmentAssignee", fields: [assigneeId], references: [id])
+  type            AppointmentType
+  title           String
+  location        String?
+  notes           String?
+  startTime       DateTime
+  endTime         DateTime?
+  assigneeAccepted Boolean?       // null = pending, true = accepted, false = declined
+  assigneeNote    String?         // note from assignee on accept/decline
+  outcomeNotes    String?         // post-meeting outcome added by assignee
+  outcomeAddedAt  DateTime?
+  feedItems       FeedItem[]
+  reminders       Reminder[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([groupId])
+  @@index([groupId, startTime])
+}
+
+// =============================================================================
+// TASKS
+// =============================================================================
+
+model Task {
+  id            String            @id @default(uuid())
+  groupId       String
+  group         CareGroup         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdById   String
+  createdBy     User              @relation("TaskCreator", fields: [createdById], references: [id])
+  assigneeId    String?
+  assignee      User?             @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  title         String
+  description   String?
+  dueDate       DateTime?
+  status        TaskStatus        @default(OPEN)
+  recurrence    RecurrencePattern @default(NONE)
+  recurrenceCron String?          // cron expression for CUSTOM recurrence
+  completedAt   DateTime?
+  completionNote String?
+  completionPhotoKey String?      // S3 key for completion photo
+  parentTaskId  String?           // for recurring task instances
+  parentTask    Task?             @relation("TaskRecurrence", fields: [parentTaskId], references: [id])
+  childTasks    Task[]            @relation("TaskRecurrence")
+  feedItems     FeedItem[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([groupId])
+  @@index([groupId, status])
+  @@index([assigneeId])
+}
+
+// =============================================================================
+// RECURRING TASKS — displayed on ambient screen with alarm support
+// These are separate from one-off Tasks — they represent daily routines
+// e.g. "Morgonmedicin 08:00", "Kvällsmedicin 20:00"
+// =============================================================================
+
+model RecurringTask {
+  id               String    @id @default(uuid())
+  groupId          String
+  group            CareGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  title            String    // shown on ambient display — keep short and Swedish
+  scheduledTime    String    // "HH:MM" in 24h format, e.g. "08:00"
+  recurrenceDays   Int[]     // ISO weekday: 1=Mon … 7=Sun. Empty = every day
+  isActive         Boolean   @default(true)
+
+  // Ambient display settings
+  showOnDisplay    Boolean   @default(true)   // whether this task appears on the wall screen
+  displayOrder     Int       @default(0)       // sort order on display
+
+  // Alarm settings
+  alarmEnabled     Boolean   @default(true)
+  volume           Int       @default(60)      // 0–100, overrides DisplayToken.volume if set
+  missedThreshold  Int       @default(30)      // minutes after scheduledTime before "missed" alert
+  snoozeInterval   Int       @default(15)      // minutes per snooze
+  maxSnoozes       Int       @default(3)       // 0 = no snooze allowed
+
+  logs             RecurringTaskLog[]
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([groupId])
+  @@index([groupId, isActive])
+}
+
+// One row per occurrence — confirmed, snoozed, or missed
+model RecurringTaskLog {
+  id              String        @id @default(uuid())
+  recurringTaskId String
+  recurringTask   RecurringTask @relation(fields: [recurringTaskId], references: [id], onDelete: Cascade)
+  groupId         String        // denormalised for fast tenant queries
+  scheduledFor    DateTime      // the exact datetime this occurrence was due
+  confirmedAt     DateTime?     // null = not yet confirmed
+  confirmedById   String?       // userId if confirmed from app; null if confirmed on display
+  confirmedBy     User?         @relation("ConfirmedBy", fields: [confirmedById], references: [id])
+  confirmedOnDisplay Boolean    @default(false) // true if confirmed via the wall screen tap
+  snoozeCount     Int           @default(0)
+  missedAlertSent Boolean       @default(false) // whether the missed-activity push was sent
+  missedAlertSentAt DateTime?
+  remotelyClearedById String?   // if a family member cleared it remotely
+  createdAt       DateTime      @default(now())
+
+  @@unique([recurringTaskId, scheduledFor])
+  @@index([groupId])
+  @@index([scheduledFor])
+  @@index([groupId, scheduledFor])
+}
+
+// =============================================================================
+// CARE JOURNAL
+// =============================================================================
+
+model JournalEntry {
+  id          String           @id @default(uuid())
+  groupId     String
+  group       CareGroup        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User             @relation(fields: [authorId], references: [id])
+  entryType   JournalEntryType
+  title       String           // short summary — LLM-generated for voice entries
+  body        String           // full text
+  tags        String[]         // free-form + LLM-suggested tags
+  photoKeys   String[]         // S3 keys for attached photos
+  voiceTranscript String?      // raw transcript if entry was voice-created
+  // Links to source objects if auto-created
+  appointmentId String?
+  recurringTaskLogId String?
+  feedItems   FeedItem[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([groupId])
+  @@index([groupId, createdAt])
+  @@index([groupId, entryType])
+}
+
+// =============================================================================
+// EXPENSES & RECEIPTS
+// =============================================================================
+
+model Expense {
+  id           String          @id @default(uuid())
+  groupId      String
+  group        CareGroup       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdById  String
+  createdBy    User            @relation(fields: [createdById], references: [id])
+  amount       Int             // stored as öre (1/100 SEK) to avoid float issues
+  category     ExpenseCategory
+  description  String
+  expenseDate  DateTime
+  receiptKey   String?         // S3 key for receipt image
+  comments     ExpenseComment[]
+  feedItems    FeedItem[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([groupId])
+  @@index([groupId, expenseDate])
+  @@index([groupId, category])
+}
+
+model ExpenseComment {
+  id        String   @id @default(uuid())
+  expenseId String
+  expense   Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([expenseId])
+}
+
+// =============================================================================
+// DOCUMENTS
+// =============================================================================
+
+model Document {
+  id           String           @id @default(uuid())
+  groupId      String
+  group        CareGroup        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  uploadedById String
+  uploadedBy   User             @relation(fields: [uploadedById], references: [id])
+  category     DocumentCategory
+  title        String
+  fileKey      String           // S3 key: tenants/{groupId}/documents/{id}/{filename}
+  mimeType     String
+  sizeBytes    Int
+  leadOnly     Boolean          @default(false) // if true, only LEAD role can access
+  feedItems    FeedItem[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([groupId])
+  @@index([groupId, category])
+}
+
+// =============================================================================
+// ACTIVITY FEED
+// =============================================================================
+
+// FeedItem is a denormalised view of everything that happens in a care group.
+// One row per event — makes the feed query a simple paginated scan.
+model FeedItem {
+  id             String        @id @default(uuid())
+  groupId        String
+  group          CareGroup     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  actorId        String?       // user who caused this event (null for system events)
+  itemType       String        // e.g. "APPOINTMENT_CREATED", "TASK_COMPLETED", "JOURNAL_ENTRY"
+  // Optional foreign keys — at most one will be set
+  appointmentId  String?
+  appointment    Appointment?  @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  taskId         String?
+  task           Task?         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  journalEntryId String?
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  expenseId      String?
+  expense        Expense?      @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  documentId     String?
+  document       Document?     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  bodyText       String?       // short Swedish summary for the feed card
+  readBy         FeedItemRead[]
+  comments       FeedComment[]
+  createdAt      DateTime      @default(now())
+
+  @@index([groupId, createdAt])
+}
+
+model FeedItemRead {
+  id         String   @id @default(uuid())
+  feedItemId String
+  feedItem   FeedItem @relation(fields: [feedItemId], references: [id], onDelete: Cascade)
+  userId     String
+  readAt     DateTime @default(now())
+
+  @@unique([feedItemId, userId])
+  @@index([userId])
+}
+
+model FeedComment {
+  id         String   @id @default(uuid())
+  feedItemId String
+  feedItem   FeedItem @relation(fields: [feedItemId], references: [id], onDelete: Cascade)
+  authorId   String
+  body       String
+  createdAt  DateTime @default(now())
+
+  @@index([feedItemId])
+}
+
+// =============================================================================
+// NOTIFICATIONS (push)
+// =============================================================================
+
+model Notification {
+  id          String           @id @default(uuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groupId     String
+  group       CareGroup        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  type        NotificationType
+  titleSv     String           // Swedish push title
+  bodySv      String           // Swedish push body
+  deepLink    String?          // in-app route to open on tap
+  sentAt      DateTime?
+  readAt      DateTime?
+  createdAt   DateTime         @default(now())
+
+  @@index([userId, createdAt])
+  @@index([groupId])
+}
+
+model PushToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique // Expo push token or FCM token
+  platform  String   // "ios" | "android" | "web"
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// =============================================================================
+// REMINDERS (scheduled — appointments)
+// =============================================================================
+
+model Reminder {
+  id            String      @id @default(uuid())
+  appointmentId String
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  minutesBefore Int         // e.g. 1440 = 24h, 60 = 1h
+  sentAt        DateTime?
+  createdAt     DateTime    @default(now())
+
+  @@index([appointmentId])
+}
+
+// =============================================================================
+// AUDIT LOG
+// =============================================================================
+
+model AuditLog {
+  id         String    @id @default(uuid())
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id])
+  groupId    String?
+  group      CareGroup? @relation(fields: [groupId], references: [id])
+  action     String    // e.g. "APPOINTMENT_CREATED", "DOCUMENT_ACCESSED", "MEMBER_REMOVED"
+  resourceType String? // e.g. "Appointment", "Document"
+  resourceId String?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+
+  @@index([groupId, createdAt])
+  @@index([userId, createdAt])
+}

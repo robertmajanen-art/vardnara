@@ -1,0 +1,8 @@
+{
+  "name": "@vardnara/locales",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    "./sv": "./sv.json"
+  }
+}
