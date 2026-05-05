@@ -43,14 +43,14 @@ jobs:
       - name: Package deployment artifact
         run: |
           mkdir -p deploy_pkg
-          cp packages/api/dist/server.bundle.cjs deploy_pkg/
-          # CJS bundle — no "type": "module" needed
+          cp packages/api/dist/server.bundle.js deploy_pkg/
           cat > deploy_pkg/package.json << 'EOF'
           {
             "name": "vardnara-api",
             "version": "0.1.0",
+            "type": "module",
             "scripts": {
-              "start": "node server.bundle.cjs"
+              "start": "node server.bundle.js"
             }
           }
           EOF
@@ -73,7 +73,7 @@ jobs:
           az webapp config set \
             --name ${{ env.AZURE_WEBAPP_NAME }} \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --startup-file "node server.bundle.cjs"
+            --startup-file "node server.bundle.js"
 
       - name: Deploy to Azure App Service
         run: |
@@ -81,5 +81,10 @@ jobs:
             --name ${{ env.AZURE_WEBAPP_NAME }} \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --src-path api-deploy.zip \
-            --type zip \
-            --async true
+            --type zip
+
+      - name: Restart app
+        run: |
+          az webapp restart \
+            --name ${{ env.AZURE_WEBAPP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }}
