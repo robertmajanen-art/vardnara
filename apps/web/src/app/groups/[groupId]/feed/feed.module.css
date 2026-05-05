@@ -1,0 +1,98 @@
+.page {
+  padding: 1.5rem 2rem;
+  max-width: 700px;
+}
+
+.header {
+  margin-bottom: 1.5rem;
+}
+
+.header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.empty {
+  padding: 2rem;
+  color: var(--color-text-muted);
+}
+
+.list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.item:hover {
+  background: #f8f9fa;
+}
+
+.unread {
+  background: #f0f6ff;
+}
+
+.unread:hover {
+  background: #e8f0fe;
+}
+
+.itemDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-border);
+  margin-top: 0.4rem;
+  flex-shrink: 0;
+}
+
+.unread .itemDot {
+  background: var(--color-primary);
+}
+
+.itemBody {
+  flex: 1;
+}
+
+.itemText {
+  font-size: 0.9375rem;
+  margin-bottom: 0.25rem;
+}
+
+.itemTime {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  display: flex;
+  gap: 0.75rem;
+}
+
+.commentCount {
+  color: var(--color-primary);
+}
+
+.loadMore {
+  display: block;
+  width: 100%;
+  padding: 0.875rem;
+  margin-top: 1rem;
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  transition: all 0.15s;
+}
+
+.loadMore:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}

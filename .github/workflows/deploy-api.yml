@@ -6,6 +6,7 @@ on:
     paths:
       - 'packages/api/**'
       - 'packages/types/**'
+      - 'packages/utils/**'
       - 'packages/db/prisma/**'
       - '.github/workflows/deploy-api.yml'
   workflow_dispatch:

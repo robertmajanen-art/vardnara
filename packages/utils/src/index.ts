@@ -1,2 +1,2 @@
-export * from './date.js'
-export * from './currency.js'
+export * from './date'
+export * from './currency'

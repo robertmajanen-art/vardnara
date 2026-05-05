@@ -1,0 +1,190 @@
+.screen {
+  min-height: 100vh;
+  background: #0d1b2e;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem;
+  font-family: var(--font);
+  position: relative;
+}
+
+.clock {
+  font-size: clamp(4rem, 12vw, 9rem);
+  font-weight: 200;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  margin-top: 2rem;
+}
+
+.date {
+  font-size: clamp(1.25rem, 3vw, 2rem);
+  color: #a5c8ff;
+  text-transform: capitalize;
+  margin-top: 0.5rem;
+  margin-bottom: 3rem;
+}
+
+.wellDone {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(25, 135, 84, 0.9);
+  color: white;
+  font-size: clamp(2rem, 6vw, 4rem);
+  font-weight: 700;
+  padding: 1.5rem 3rem;
+  border-radius: 1rem;
+  text-align: center;
+  z-index: 100;
+  animation: fadeInOut 3s ease-in-out;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+  20% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.alarmOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(13, 27, 46, 0.95);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  gap: 1rem;
+}
+
+.alarmTitle {
+  font-size: clamp(2.5rem, 8vw, 5rem);
+  font-weight: 300;
+  text-align: center;
+  color: white;
+}
+
+.alarmTime {
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  color: #a5c8ff;
+  margin-bottom: 1rem;
+}
+
+.confirmBtn {
+  min-height: 80px;
+  min-width: 280px;
+  padding: 1.25rem 3rem;
+  background: #198754;
+  color: white;
+  border: none;
+  border-radius: 1rem;
+  font-size: clamp(1.75rem, 5vw, 3rem);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.confirmBtn:active {
+  transform: scale(0.97);
+  background: #157347;
+}
+
+.snoozeBtn {
+  padding: 0.75rem 2rem;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.6);
+  border-radius: 0.75rem;
+  font-size: 1rem;
+  cursor: pointer;
+  margin-top: 0.5rem;
+  transition: all 0.15s;
+}
+
+.snoozeBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+}
+
+.panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  width: 100%;
+  max-width: 1200px;
+}
+
+@media (max-width: 768px) {
+  .panels {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panel {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1rem;
+  padding: 1.5rem;
+}
+
+.panelTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #7ab3ff;
+  margin-bottom: 1rem;
+}
+
+.noItems {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 1rem;
+}
+
+.appointmentList,
+.taskList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.appointmentItem,
+.taskItem {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.aptTime,
+.taskTime {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #a5c8ff;
+  min-width: 3.5rem;
+}
+
+.aptTitle,
+.taskTitle {
+  font-size: 1.25rem;
+  font-weight: 400;
+}
+
+.aptLocation {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.errorScreen {
+  min-height: 100vh;
+  background: #0d1b2e;
+  color: #f87171;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+}

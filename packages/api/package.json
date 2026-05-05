@@ -15,6 +15,7 @@
     "test:watch": "jest --watch"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.27.3",
     "@fastify/cookie": "^9.3.1",
     "@fastify/cors": "^9.0.0",
     "@fastify/jwt": "^8.0.0",
@@ -37,9 +38,9 @@
     "@types/node": "^20.14.0",
     "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^6.4.15",
+    "esbuild": "^0.21.0",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.5",
-    "esbuild": "^0.21.0",
     "tsx": "^4.15.0",
     "typescript": "^5.4.0"
   }

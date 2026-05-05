@@ -6,10 +6,18 @@ import fastifyMultipart from '@fastify/multipart'
 
 import prismaPlugin from './plugins/prisma'
 import mailerPlugin from './plugins/mailer'
+import socketioPlugin from './plugins/socketio'
 import { authRoutes } from './auth/routes'
 import { groupRoutes } from './groups/routes'
 import { inviteRoutes } from './invite/routes'
 import { voiceRoutes } from './voice/routes'
+import { voiceParseFormRoute } from './voice/parse-form'
+import { appointmentRoutes } from './appointments/routes'
+import { taskRoutes } from './tasks/routes'
+import { recurringTaskRoutes } from './recurring-tasks/routes'
+import { feedRoutes } from './feed/routes'
+import { displayTokenRoutes, publicDisplayRoute } from './display/routes'
+import { startAlarmCron } from './jobs/alarmCron'
 
 const server = Fastify({ logger: true })
 
@@ -47,6 +55,7 @@ server.decorate(
 
 await server.register(prismaPlugin)
 await server.register(mailerPlugin)
+await server.register(socketioPlugin)
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
@@ -54,8 +63,19 @@ await server.register(authRoutes, { prefix: '/api/auth' })
 await server.register(groupRoutes, { prefix: '/api/groups' })
 await server.register(inviteRoutes, { prefix: '/api/invite' })
 await server.register(voiceRoutes, { prefix: '/api/voice' })
+await server.register(voiceParseFormRoute, { prefix: '/api/voice' })
+await server.register(appointmentRoutes, { prefix: '/api/groups' })
+await server.register(taskRoutes, { prefix: '/api/groups' })
+await server.register(recurringTaskRoutes, { prefix: '/api/groups' })
+await server.register(feedRoutes, { prefix: '/api/groups' })
+await server.register(displayTokenRoutes, { prefix: '/api/groups' })
+await server.register(publicDisplayRoute, { prefix: '/api/display' })
 
 server.get('/health', async () => ({ ok: true, ts: new Date().toISOString() }))
+
+// ── Background jobs ───────────────────────────────────────────────────────────
+
+startAlarmCron(server.prisma, server.io)
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 
