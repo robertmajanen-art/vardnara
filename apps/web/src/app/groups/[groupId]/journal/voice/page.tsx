@@ -37,6 +37,7 @@ export default function VoiceJournalPage({ params }: { params: { groupId: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null)
   const transcriptRef = useRef('')
+  const finishingRef = useRef(false)
 
   function startListening() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -44,26 +45,34 @@ export default function VoiceJournalPage({ params }: { params: { groupId: string
     if (!SR) { setErrorMsg('Din webbläsare stöder inte röstinmatning.'); setPhase('error'); return }
     const rec = new SR()
     rec.lang = 'sv-SE'
+    rec.continuous = true
     rec.interimResults = true
     rec.maxAlternatives = 1
     recognitionRef.current = rec
     transcriptRef.current = ''
+    finishingRef.current = false
     setPhase('listening')
     setTranscript('')
     rec.start()
     rec.onresult = (e: { results: ArrayLike<{ [k: number]: { transcript: string } }> }) => {
-      const interim = Array.from(e.results).map((r) => r[0]?.transcript ?? '').join('')
+      const interim = Array.from(e.results).map((r) => r[0]?.transcript ?? '').join(' ')
       transcriptRef.current = interim
       setTranscript(interim)
     }
     rec.onerror = () => { setPhase('error'); setErrorMsg('Röstinspelning misslyckades.') }
-    rec.onend = () => finishListening()
+    rec.onend = () => {
+      if (finishingRef.current) finishListening()
+    }
   }
 
   async function finishListening() {
-    recognitionRef.current?.stop()
     setPhase('parsing')
-    const currentTranscript = transcriptRef.current
+    const currentTranscript = transcriptRef.current.trim()
+    if (!currentTranscript) {
+      setErrorMsg('Inget tal registrerades. Försök igen.')
+      setPhase('error')
+      return
+    }
     try {
       const result = await api.post<ParsedJournal>('/api/voice/parse-form', { transcript: currentTranscript })
       if (result.formType === 'journal') {
@@ -84,8 +93,8 @@ export default function VoiceJournalPage({ params }: { params: { groupId: string
   }
 
   function handleStop() {
+    finishingRef.current = true
     recognitionRef.current?.stop()
-    finishListening()
   }
 
   async function handleSave() {

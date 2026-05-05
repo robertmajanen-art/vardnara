@@ -35,6 +35,7 @@ export default function NewJournalPage({ params }: { params: { groupId: string }
   const [parsing, setParsing] = useState(false)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null)
+  const accumulatedRef = useRef('')
 
   function startVoice() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -42,15 +43,21 @@ export default function NewJournalPage({ params }: { params: { groupId: string }
     if (!SR) { setError('Din webbläsare stöder inte röstinmatning.'); return }
     const rec = new SR()
     rec.lang = 'sv-SE'
+    rec.continuous = true
     rec.interimResults = false
     rec.maxAlternatives = 1
+    accumulatedRef.current = ''
     recognitionRef.current = rec
     setListening(true)
     setError('')
     rec.start()
-    rec.onresult = async (e: { results: { [k: number]: { [k: number]: { transcript: string } } } }) => {
-      const transcript = e.results[0]?.[0]?.transcript ?? ''
+    rec.onresult = (e: { results: ArrayLike<{ [k: number]: { transcript: string } }> }) => {
+      accumulatedRef.current = Array.from(e.results).map((r) => r[0]?.transcript ?? '').join(' ')
+    }
+    rec.onerror = () => { setListening(false); setError('Röstinspelning misslyckades.') }
+    rec.onend = async () => {
       setListening(false)
+      const transcript = accumulatedRef.current.trim()
       if (!transcript) return
       setParsing(true)
       try {
@@ -69,13 +76,10 @@ export default function NewJournalPage({ params }: { params: { groupId: string }
         setParsing(false)
       }
     }
-    rec.onerror = () => { setListening(false); setError('Röstinspelning misslyckades.') }
-    rec.onend = () => setListening(false)
   }
 
   function stopVoice() {
     recognitionRef.current?.stop()
-    setListening(false)
   }
 
   async function handleSubmit(e: React.FormEvent) {
