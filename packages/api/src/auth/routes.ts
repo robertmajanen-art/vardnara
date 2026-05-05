@@ -44,16 +44,21 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     try {
-      const { id, email, emailVerifyToken } = await provider.register(
+      const { email, emailVerifyToken } = await provider.register(
         parsed.data.email,
         parsed.data.password,
       )
-      await fastify.mailer.sendVerificationEmail(email, emailVerifyToken)
-      return reply.code(201).send({
-        id,
-        email,
-        message: 'Kontrollera din e-post för att verifiera ditt konto',
+      // Send verification email in background — don't block the response
+      fastify.mailer.sendVerificationEmail(email, emailVerifyToken).catch((err) =>
+        fastify.log.warn({ err }, '[register] Failed to send verification email'),
+      )
+      // Issue tokens so the user is logged in immediately after registration
+      const { accessToken, refreshToken } = await provider.login({
+        email: parsed.data.email,
+        password: parsed.data.password,
       })
+      reply.setCookie(REFRESH_COOKIE, refreshToken, COOKIE_OPTS)
+      return reply.code(201).send({ accessToken, refreshToken })
     } catch (err: unknown) {
       if (err instanceof Error && err.message === 'EMAIL_TAKEN') {
         return reply.code(409).send({

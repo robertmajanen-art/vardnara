@@ -8,7 +8,7 @@ import type { JwtPayload } from '../types/index'
 type SignFn = (payload: object, opts?: { expiresIn: string }) => string
 type VerifyFn = (token: string) => JwtPayload
 
-const SALT_ROUNDS = 12
+const SALT_ROUNDS = 10
 const REFRESH_BYTES = 32
 const REFRESH_DAYS = 30
 const ACCESS_EXPIRY = '15m'
