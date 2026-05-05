@@ -40,6 +40,7 @@ export default function VoiceJournalPage({ params }: { params: { groupId: string
   const finishingRef = useRef(false)
   const phaseRef = useRef<Phase>('idle')
   const [restartCount, setRestartCount] = useState(0)
+  const [lastError, setLastError] = useState('')
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const SRRef = useRef<any>(null)
 
@@ -64,12 +65,11 @@ export default function VoiceJournalPage({ params }: { params: { groupId: string
       setTranscript(interim)
     }
     rec.onerror = (e: { error: string }) => {
-      // Only treat permanent errors as fatal; transient errors let onend handle restart
+      setLastError(e.error)
       if (e.error === 'not-allowed' || e.error === 'audio-capture') {
         setPhaseSync('error')
         setErrorMsg(`Mikrofonåtkomst nekad (${e.error}). Kontrollera webbläsarens behörigheter.`)
       }
-      // 'network', 'no-speech', 'aborted' etc. → let onend fire and restart
     }
     rec.onend = () => {
       if (finishingRef.current) {
@@ -168,7 +168,7 @@ export default function VoiceJournalPage({ params }: { params: { groupId: string
         <div className={styles.center}>
           <div className={`${styles.icon} ${styles.pulse}`}>🎤</div>
           <h1 className={styles.heading}>Lyssnar...</h1>
-          {restartCount > 0 && <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Återansluter... ({restartCount})</p>}
+          {restartCount > 0 && <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Återansluter... ({restartCount}){lastError ? ` fel: ${lastError}` : ''}</p>}
           {transcript && <p className={styles.transcript}>{transcript}</p>}
           <button className={styles.stopBtn} onClick={handleStop}>Klar</button>
         </div>
