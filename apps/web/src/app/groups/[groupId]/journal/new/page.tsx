@@ -48,7 +48,7 @@ export default function NewJournalPage({ params }: { params: { groupId: string }
     setListening(true)
     setError('')
     rec.start()
-    rec.onresult = async (e) => {
+    rec.onresult = async (e: { results: { [k: number]: { [k: number]: { transcript: string } } } }) => {
       const transcript = e.results[0]?.[0]?.transcript ?? ''
       setListening(false)
       if (!transcript) return

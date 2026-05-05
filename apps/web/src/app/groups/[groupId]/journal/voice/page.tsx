@@ -51,7 +51,7 @@ export default function VoiceJournalPage({ params }: { params: { groupId: string
     setPhase('listening')
     setTranscript('')
     rec.start()
-    rec.onresult = (e) => {
+    rec.onresult = (e: { results: ArrayLike<{ [k: number]: { transcript: string } }> }) => {
       const interim = Array.from(e.results).map((r) => r[0]?.transcript ?? '').join('')
       transcriptRef.current = interim
       setTranscript(interim)
