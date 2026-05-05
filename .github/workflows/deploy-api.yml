@@ -41,6 +41,11 @@ jobs:
       - name: Bundle API with esbuild
         run: npm run build:bundle --workspace=packages/api
 
+      - name: Check bundle
+        run: |
+          echo "Bundle size: $(du -sh packages/api/dist/server.bundle.js)"
+          node --check packages/api/dist/server.bundle.js && echo "Bundle syntax OK"
+
       - name: Package deployment artifact
         run: |
           mkdir -p deploy_pkg
@@ -82,10 +87,5 @@ jobs:
             --name ${{ env.AZURE_WEBAPP_NAME }} \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --src-path api-deploy.zip \
-            --type zip
-
-      - name: Restart app
-        run: |
-          az webapp restart \
-            --name ${{ env.AZURE_WEBAPP_NAME }} \
-            --resource-group ${{ env.AZURE_RESOURCE_GROUP }}
+            --type zip \
+            --timeout 300
