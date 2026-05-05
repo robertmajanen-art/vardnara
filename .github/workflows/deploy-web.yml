@@ -1,0 +1,76 @@
+name: Deploy Web to Azure
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'apps/web/**'
+      - 'packages/ui/**'
+      - 'packages/utils/**'
+      - 'packages/types/**'
+      - 'packages/locales/**'
+      - '.github/workflows/deploy-web.yml'
+  workflow_dispatch:
+
+env:
+  AZURE_WEBAPP_NAME: vardnara-web
+  AZURE_RESOURCE_GROUP: vardnara-rg
+  NODE_VERSION: '20'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web app
+        run: npm run build --workspace=apps/web
+        env:
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+
+      - name: Package deployment artifact
+        run: |
+          mkdir -p web_deploy_pkg
+          cp -r apps/web/.next/standalone/. web_deploy_pkg/
+          mkdir -p web_deploy_pkg/apps/web/public
+          cp -r apps/web/public/. web_deploy_pkg/apps/web/public/ 2>/dev/null || true
+          cp -r apps/web/.next/static web_deploy_pkg/apps/web/.next/static
+          cat > web_deploy_pkg/start.js << 'EOF'
+          process.chdir(__dirname + '/apps/web')
+          require('./server.js')
+          EOF
+          echo "--- Package contents ---"
+          ls -lah web_deploy_pkg/
+          cd web_deploy_pkg && zip -r ../web-deploy.zip . && cd ..
+          echo "Zip size: $(du -sh web-deploy.zip)"
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set startup command
+        run: |
+          az webapp config set \
+            --name ${{ env.AZURE_WEBAPP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --startup-file "node start.js"
+
+      - name: Deploy to Azure App Service
+        run: |
+          az webapp deploy \
+            --name ${{ env.AZURE_WEBAPP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --src-path web-deploy.zip \
+            --type zip \
+            --timeout 300
