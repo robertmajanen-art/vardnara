@@ -19,7 +19,11 @@ export const voiceRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const audioBuffer = Buffer.from(body.audio, 'base64')
-    const mimeType = body.mimeType ?? 'audio/webm'
+    // Ensure full MIME type with codec for Azure Speech (e.g. audio/webm;codecs=opus)
+    const rawMime = body.mimeType ?? 'audio/webm'
+    const contentType = rawMime.includes('webm') && !rawMime.includes('codecs')
+      ? 'audio/webm;codecs=opus'
+      : rawMime
 
     const sttRes = await fetch(
       `https://${region}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=sv-SE&format=simple`,
@@ -27,7 +31,7 @@ export const voiceRoutes: FastifyPluginAsync = async (fastify) => {
         method: 'POST',
         headers: {
           'Ocp-Apim-Subscription-Key': key,
-          'Content-Type': mimeType,
+          'Content-Type': contentType,
         },
         body: audioBuffer,
       },
@@ -35,13 +39,17 @@ export const voiceRoutes: FastifyPluginAsync = async (fastify) => {
 
     if (!sttRes.ok) {
       const err = await sttRes.text()
-      return reply.code(502).send({ statusCode: 502, error: 'Bad Gateway', message: `Azure Speech fel: ${err}` })
+      return reply.code(502).send({ statusCode: 502, error: 'Bad Gateway', message: `Azure Speech HTTP ${sttRes.status}: ${err}` })
     }
 
     const result = await sttRes.json() as { RecognitionStatus: string; DisplayText?: string }
 
     if (result.RecognitionStatus !== 'Success' || !result.DisplayText) {
-      return reply.code(422).send({ statusCode: 422, error: 'Unprocessable Entity', message: 'Inget tal igenkändes' })
+      return reply.code(422).send({
+        statusCode: 422,
+        error: 'Unprocessable Entity',
+        message: `Inget tal igenkändes (status: ${result.RecognitionStatus})`,
+      })
     }
 
     return { transcript: result.DisplayText }
