@@ -1,6 +1,8 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { clearTokens } from '../../../lib/api'
 import styles from './group.module.css'
 
 const NAV_ITEMS = [
@@ -21,11 +23,33 @@ export default function GroupLayout({
   params: { groupId: string }
 }) {
   const { t } = useTranslation()
+  const [email, setEmail] = useState<string | null>(null)
+
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken')
+    if (!token) return
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]!))
+      setEmail(payload.email ?? null)
+    } catch {
+      // ignore malformed token
+    }
+  }, [])
+
+  function handleLogout() {
+    fetch(`${process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000'}/api/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    }).finally(() => {
+      clearTokens()
+      window.location.href = '/login'
+    })
+  }
 
   return (
     <div className={styles.shell}>
       <nav className={styles.sidebar}>
-        <div className={styles.logo}>Vardnära</div>
+        <a href="/groups" className={styles.logo}>Vardnära</a>
         <ul className={styles.navList}>
           {NAV_ITEMS.map((item) => (
             <li key={item.href}>
@@ -38,6 +62,10 @@ export default function GroupLayout({
             </li>
           ))}
         </ul>
+        <div className={styles.userSection}>
+          {email && <span className={styles.userEmail}>{email}</span>}
+          <button onClick={handleLogout} className={styles.logoutBtn}>Logga ut</button>
+        </div>
       </nav>
       <main className={styles.main}>{children}</main>
     </div>
