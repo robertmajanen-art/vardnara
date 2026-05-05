@@ -40,3 +40,7 @@ coverage/
 apps/mobile/.expo/
 apps/mobile/android/
 apps/mobile/ios/
+
+# Azure
+azure/publish-profile.xml
+api-deploy.zip
