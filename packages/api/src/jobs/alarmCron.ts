@@ -1,17 +1,22 @@
-import { schedule } from 'node-cron'
 import type { PrismaClient } from '@prisma/client'
 import type { Server } from 'socket.io'
 import { sendPush } from '../services/push'
 
 export function startAlarmCron(db: PrismaClient, io: Server) {
   // Every minute — check for overdue tasks and missed recurring activities
-  schedule('* * * * *', async () => {
+  const tick = async () => {
     await Promise.allSettled([
       markOverdueTasks(db),
       sendMissedActivityAlerts(db, io),
       sendAppointmentReminders(db),
     ])
-  })
+  }
+  // Align first tick to the next whole minute, then repeat every 60s
+  const msUntilNextMinute = (60 - new Date().getSeconds()) * 1000
+  setTimeout(() => {
+    tick()
+    setInterval(tick, 60_000)
+  }, msUntilNextMinute)
 }
 
 async function markOverdueTasks(db: PrismaClient) {
