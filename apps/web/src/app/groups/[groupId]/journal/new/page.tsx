@@ -57,15 +57,21 @@ export default function NewJournalPage({ params }: { params: { groupId: string }
         accumulatedRef.current = Array.from(e.results).map((r) => r[0]?.transcript ?? '').join(' ')
       }
       rec.onerror = (e: { error: string }) => {
-        if (e.error === 'no-speech') return
-        listeningRef.current = false
-        setListening(false)
-        setError('Röstinspelning misslyckades.')
+        if (e.error === 'not-allowed' || e.error === 'audio-capture') {
+          listeningRef.current = false
+          setListening(false)
+          setError(`Mikrofonåtkomst nekad (${e.error}). Kontrollera webbläsarens behörigheter.`)
+        }
+        // transient errors → let onend handle restart
       }
       rec.onend = async () => {
         if (!stoppingRef.current && listeningRef.current) {
-          // Browser auto-stopped — restart to keep listening
-          try { const r = makeRec(); recognitionRef.current = r; r.start() } catch { /* ignore */ }
+          // Browser auto-stopped — restart after brief delay
+          setTimeout(() => {
+            if (listeningRef.current && !stoppingRef.current) {
+              try { const r = makeRec(); recognitionRef.current = r; r.start() } catch { /* ignore */ }
+            }
+          }, 300)
           return
         }
         listeningRef.current = false
