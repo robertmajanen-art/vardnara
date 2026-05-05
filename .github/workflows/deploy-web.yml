@@ -38,7 +38,7 @@ jobs:
       - name: Build web app
         run: npm run build --workspace=apps/web
         env:
-          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_API_URL: https://vardnara-api.azurewebsites.net
 
       - name: Package deployment artifact
         run: |
