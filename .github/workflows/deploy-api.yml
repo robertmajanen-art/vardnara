@@ -12,6 +12,7 @@ on:
 
 env:
   AZURE_WEBAPP_NAME: vardnara-api
+  AZURE_RESOURCE_GROUP: vardnara-rg
   NODE_VERSION: '20'
 
 jobs:
@@ -39,21 +40,22 @@ jobs:
       - name: Package deployment artifact
         run: |
           mkdir -p deploy_pkg
-          # Self-contained bundle
           cp packages/api/dist/server.bundle.js deploy_pkg/
-          # Minimal package.json so Node treats files as ESM
           echo '{ "type": "module", "name": "vardnara-api", "version": "0.1.0" }' > deploy_pkg/package.json
-          # Prisma client (JS) + generated client with Linux binary engine
           mkdir -p deploy_pkg/node_modules
           cp -r node_modules/@prisma deploy_pkg/node_modules/
           cp -r node_modules/.prisma deploy_pkg/node_modules/
-          # Zip for deployment
           cd deploy_pkg && zip -r ../api-deploy.zip . && cd ..
 
-      - name: Deploy to Azure App Service
-        uses: azure/webapps-deploy@v3
+      - name: Log in to Azure
+        uses: azure/login@v2
         with:
-          app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: api-deploy.zip
-          os-type: linux
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure App Service
+        run: |
+          az webapp deploy \
+            --name ${{ env.AZURE_WEBAPP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --src-path api-deploy.zip \
+            --type zip
