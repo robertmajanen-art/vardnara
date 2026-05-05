@@ -50,16 +50,19 @@ jobs:
         run: |
           mkdir -p deploy_pkg
           cp packages/api/dist/server.bundle.js deploy_pkg/
-          cat > deploy_pkg/package.json << 'EOF'
-          {
-            "name": "vardnara-api",
-            "version": "0.1.0",
-            "type": "module",
-            "scripts": {
-              "start": "node server.bundle.js"
-            }
-          }
-          EOF
+          node -e "
+            const fs = require('fs');
+            const v = JSON.parse(fs.readFileSync('node_modules/socket.io/package.json','utf8')).version;
+            fs.writeFileSync('deploy_pkg/package.json', JSON.stringify({
+              name: 'vardnara-api',
+              version: '0.1.0',
+              type: 'module',
+              scripts: { start: 'node server.bundle.js' },
+              dependencies: { 'socket.io': v }
+            }, null, 2));
+            console.log('socket.io version pinned to', v);
+          "
+          cd deploy_pkg && npm install --omit=dev --no-package-lock && cd ..
           mkdir -p deploy_pkg/node_modules
           cp -r node_modules/@prisma deploy_pkg/node_modules/
           cp -r node_modules/.prisma deploy_pkg/node_modules/

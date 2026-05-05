@@ -19,6 +19,7 @@ import { feedRoutes } from './feed/routes'
 import { displayTokenRoutes, publicDisplayRoute } from './display/routes'
 import { startAlarmCron } from './jobs/alarmCron'
 
+console.log('[startup] Fastify init')
 const server = Fastify({ logger: true })
 
 // ── Core plugins ──────────────────────────────────────────────────────────────
@@ -53,12 +54,16 @@ server.decorate(
 
 // ── App plugins ───────────────────────────────────────────────────────────────
 
+console.log('[startup] registering prismaPlugin')
 await server.register(prismaPlugin)
+console.log('[startup] registering mailerPlugin')
 await server.register(mailerPlugin)
+console.log('[startup] registering socketioPlugin')
 await server.register(socketioPlugin)
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
+console.log('[startup] registering routes')
 await server.register(authRoutes, { prefix: '/api/auth' })
 await server.register(groupRoutes, { prefix: '/api/groups' })
 await server.register(inviteRoutes, { prefix: '/api/invite' })
@@ -75,9 +80,11 @@ server.get('/health', async () => ({ ok: true, ts: new Date().toISOString() }))
 
 // ── Background jobs ───────────────────────────────────────────────────────────
 
+console.log('[startup] starting alarm cron')
 startAlarmCron(server.prisma, server.io)
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 
 const port = Number(process.env['PORT'] ?? 4000)
+console.log(`[startup] listening on port ${port}`)
 await server.listen({ port, host: '0.0.0.0' })

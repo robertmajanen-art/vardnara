@@ -6,7 +6,7 @@
   "main": "./dist/server.js",
   "scripts": {
     "build": "tsc",
-    "build:bundle": "esbuild src/server.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/server.bundle.js --external:@prisma/client --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\"",
+    "build:bundle": "esbuild src/server.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/server.bundle.js --external:@prisma/client --external:socket.io --external:engine.io --external:ws --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\"",
     "dev": "node --env-file=../../.env --import tsx/esm --watch src/server.ts",
     "start": "node --env-file=../../.env dist/server.js",
     "start:prod": "node server.bundle.js",
