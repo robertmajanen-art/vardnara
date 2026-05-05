@@ -23,6 +23,15 @@ type ParsedJournal = {
   tags?: string[]
 }
 
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => resolve((reader.result as string).split(',')[1]!)
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}
+
 export default function NewJournalPage({ params }: { params: { groupId: string } }) {
   const router = useRouter()
   const [entryType, setEntryType] = useState<string>('NOTE')
@@ -31,55 +40,27 @@ export default function NewJournalPage({ params }: { params: { groupId: string }
   const [tagsInput, setTagsInput] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [listening, setListening] = useState(false)
-  const [parsing, setParsing] = useState(false)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recognitionRef = useRef<any>(null)
-  const accumulatedRef = useRef('')
-  const stoppingRef = useRef(false)
-  const listeningRef = useRef(false)
+  const [recording, setRecording] = useState(false)
+  const [processing, setProcessing] = useState(false)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<BlobPart[]>([])
 
-  function startVoice() {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition
-    if (!SR) { setError('Din webbläsare stöder inte röstinmatning.'); return }
-    accumulatedRef.current = ''
-    stoppingRef.current = false
-    listeningRef.current = true
-
-    function makeRec() {
-      const rec = new SR()
-      rec.lang = 'sv-SE'
-      rec.continuous = true
-      rec.interimResults = false
-      rec.maxAlternatives = 1
-      rec.onresult = (e: { results: ArrayLike<{ [k: number]: { transcript: string } }> }) => {
-        accumulatedRef.current = Array.from(e.results).map((r) => r[0]?.transcript ?? '').join(' ')
-      }
-      rec.onerror = (e: { error: string }) => {
-        if (e.error === 'not-allowed' || e.error === 'audio-capture') {
-          listeningRef.current = false
-          setListening(false)
-          setError(`Mikrofonåtkomst nekad (${e.error}). Kontrollera webbläsarens behörigheter.`)
-        }
-        // transient errors → let onend handle restart
-      }
-      rec.onend = async () => {
-        if (!stoppingRef.current && listeningRef.current) {
-          // Browser auto-stopped — restart after brief delay
-          setTimeout(() => {
-            if (listeningRef.current && !stoppingRef.current) {
-              try { const r = makeRec(); recognitionRef.current = r; r.start() } catch { /* ignore */ }
-            }
-          }, 300)
-          return
-        }
-        listeningRef.current = false
-        setListening(false)
-        const transcript = accumulatedRef.current.trim()
-        if (!transcript) return
-        setParsing(true)
+  async function startVoice() {
+    setError('')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
+      const recorder = new MediaRecorder(stream, { mimeType })
+      chunksRef.current = []
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop())
+        setRecording(false)
+        setProcessing(true)
         try {
+          const blob = new Blob(chunksRef.current, { type: mimeType })
+          const base64 = await blobToBase64(blob)
+          const { transcript } = await api.post<{ transcript: string }>('/api/voice/transcribe', { audio: base64, mimeType })
           const parsed = await api.post<ParsedJournal>('/api/voice/parse-form', { transcript })
           if (parsed.formType === 'journal') {
             if (parsed.entryType && ENTRY_TYPES.includes(parsed.entryType as never)) setEntryType(parsed.entryType)
@@ -89,25 +70,22 @@ export default function NewJournalPage({ params }: { params: { groupId: string }
           } else {
             setError('Kunde inte tolka som dagbokspost. Försök igen.')
           }
-        } catch {
-          setError('Röstparsning misslyckades.')
+        } catch (err: unknown) {
+          setError(err instanceof Error ? err.message : 'Röstparsning misslyckades.')
         } finally {
-          setParsing(false)
+          setProcessing(false)
         }
       }
-      return rec
+      recorder.start()
+      mediaRecorderRef.current = recorder
+      setRecording(true)
+    } catch {
+      setError('Mikrofonåtkomst nekad. Kontrollera webbläsarens behörigheter.')
     }
-
-    const rec = makeRec()
-    recognitionRef.current = rec
-    setListening(true)
-    setError('')
-    rec.start()
   }
 
   function stopVoice() {
-    stoppingRef.current = true
-    recognitionRef.current?.stop()
+    mediaRecorderRef.current?.stop()
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -136,12 +114,11 @@ export default function NewJournalPage({ params }: { params: { groupId: string }
           <span className={pageStyles.voiceHint}>Fyll i med röst</span>
           <button
             type="button"
-            className={`${pageStyles.micBtn} ${listening ? pageStyles.micActive : ''}`}
-            onClick={listening ? stopVoice : startVoice}
-            disabled={parsing}
-            title={listening ? 'Stoppa inspelning' : 'Spela in med röst'}
+            className={`${pageStyles.micBtn} ${recording ? pageStyles.micActive : ''}`}
+            onClick={recording ? stopVoice : startVoice}
+            disabled={processing}
           >
-            {listening ? '⏹ Stoppar...' : parsing ? '⏳ Tolkar...' : '🎤 Röst'}
+            {recording ? '⏹ Klar' : processing ? '⏳ Bearbetar...' : '🎤 Röst'}
           </button>
         </div>
 
@@ -156,43 +133,22 @@ export default function NewJournalPage({ params }: { params: { groupId: string }
 
         <label className={styles.label}>
           Rubrik
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className={styles.input}
-            required
-            placeholder="Kort rubrik..."
-          />
+          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className={styles.input} required placeholder="Kort rubrik..." />
         </label>
 
         <label className={styles.label}>
           Innehåll
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            className={styles.input}
-            required
-            rows={6}
-            placeholder="Beskriv händelsen eller observationen..."
-            style={{ resize: 'vertical' }}
-          />
+          <textarea value={body} onChange={(e) => setBody(e.target.value)} className={styles.input} required rows={6} placeholder="Beskriv händelsen eller observationen..." style={{ resize: 'vertical' }} />
         </label>
 
         <label className={styles.label}>
           Taggar (kommaseparerade)
-          <input
-            type="text"
-            value={tagsInput}
-            onChange={(e) => setTagsInput(e.target.value)}
-            className={styles.input}
-            placeholder="t.ex. läkare, medicin, humör"
-          />
+          <input type="text" value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} className={styles.input} placeholder="t.ex. läkare, medicin, humör" />
         </label>
 
         {error && <p style={{ color: 'var(--color-error)', fontSize: '0.875rem' }}>{error}</p>}
 
-        <button type="submit" className={styles.button} disabled={saving}>
+        <button type="submit" className={styles.button} disabled={saving || recording || processing}>
           {saving ? 'Sparar...' : 'Spara post'}
         </button>
       </form>

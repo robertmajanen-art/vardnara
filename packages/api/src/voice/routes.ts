@@ -1,50 +1,49 @@
 import type { FastifyPluginAsync } from 'fastify'
-import OpenAI from 'openai'
-import { toFile } from 'openai'
 
 export const voiceRoutes: FastifyPluginAsync = async (fastify) => {
-  const apiKey = process.env['WHISPER_API_KEY'] ?? process.env['OPENAI_API_KEY']
-
-  // POST /api/voice/transcribe — multipart audio → Swedish transcript (US-16)
+  // POST /api/voice/transcribe — base64 audio → Swedish transcript via Azure Speech
   fastify.post('/transcribe', { onRequest: [fastify.authenticate] }, async (req, reply) => {
-    if (!apiKey) {
+    const key = process.env['AZURE_SPEECH_KEY']
+    const region = process.env['AZURE_SPEECH_REGION']
+    if (!key || !region) {
       return reply.code(503).send({
         statusCode: 503,
         error: 'Service Unavailable',
-        message: 'Röstinmatning är inte konfigurerad (WHISPER_API_KEY saknas)',
+        message: 'Azure Speech är inte konfigurerat',
       })
     }
 
-    const data = await req.file()
-    if (!data) {
-      return reply.code(400).send({ statusCode: 400, error: 'Bad Request', message: 'Ingen ljudfil bifogad' })
+    const body = req.body as { audio?: string; mimeType?: string }
+    if (!body?.audio) {
+      return reply.code(400).send({ statusCode: 400, error: 'Bad Request', message: 'audio (base64) saknas' })
     }
 
-    const allowedMime = ['audio/webm', 'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/m4a']
-    if (!allowedMime.includes(data.mimetype)) {
-      return reply.code(400).send({
-        statusCode: 400,
-        error: 'Bad Request',
-        message: `Filformatet stöds inte. Tillåtna format: ${allowedMime.join(', ')}`,
-      })
+    const audioBuffer = Buffer.from(body.audio, 'base64')
+    const mimeType = body.mimeType ?? 'audio/webm'
+
+    const sttRes = await fetch(
+      `https://${region}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=sv-SE&format=simple`,
+      {
+        method: 'POST',
+        headers: {
+          'Ocp-Apim-Subscription-Key': key,
+          'Content-Type': mimeType,
+        },
+        body: audioBuffer,
+      },
+    )
+
+    if (!sttRes.ok) {
+      const err = await sttRes.text()
+      return reply.code(502).send({ statusCode: 502, error: 'Bad Gateway', message: `Azure Speech fel: ${err}` })
     }
 
-    const chunks: Buffer[] = []
-    for await (const chunk of data.file) {
-      chunks.push(chunk)
+    const result = await sttRes.json() as { RecognitionStatus: string; DisplayText?: string }
+
+    if (result.RecognitionStatus !== 'Success' || !result.DisplayText) {
+      return reply.code(422).send({ statusCode: 422, error: 'Unprocessable Entity', message: 'Inget tal igenkändes' })
     }
-    const buffer = Buffer.concat(chunks)
 
-    const openai = new OpenAI({ apiKey })
-    const file = await toFile(buffer, data.filename ?? 'audio.webm', { type: data.mimetype })
-
-    const result = await openai.audio.transcriptions.create({
-      file,
-      model: 'whisper-1',
-      language: 'sv',
-      response_format: 'json',
-    })
-
-    return reply.send({ transcript: result.text })
+    return { transcript: result.DisplayText }
   })
 }
