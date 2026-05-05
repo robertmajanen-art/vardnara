@@ -15,16 +15,45 @@ export function clearTokens() {
   localStorage.removeItem('refreshToken')
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function tryRefresh(): Promise<boolean> {
+  const refreshToken = localStorage.getItem('refreshToken')
+  if (!refreshToken) return false
+  try {
+    const res = await fetch(`${BASE_URL}/api/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    })
+    if (!res.ok) return false
+    const data = await res.json() as { accessToken: string }
+    localStorage.setItem('accessToken', data.accessToken)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function request<T>(path: string, init?: RequestInit, isRetry = false): Promise<T> {
   const token = getToken()
   const res = await fetch(`${BASE_URL}${path}`, {
     ...init,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
   })
+
+  if (res.status === 401 && !isRetry && path !== '/api/auth/login' && path !== '/api/auth/refresh') {
+    const refreshed = await tryRefresh()
+    if (refreshed) return request<T>(path, init, true)
+    clearTokens()
+    window.location.href = '/login'
+    throw new Error('Session utgången')
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw Object.assign(new Error(err.message ?? res.statusText), { status: res.status, body: err })

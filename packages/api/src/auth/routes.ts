@@ -104,7 +104,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
   // POST /api/auth/refresh — US-02
   fastify.post('/refresh', async (request, reply) => {
-    const rawToken = (request.cookies as Record<string, string | undefined>)[REFRESH_COOKIE]
+    const body = request.body as Record<string, string | undefined> | null
+    const rawToken =
+      (request.cookies as Record<string, string | undefined>)[REFRESH_COOKIE] ??
+      body?.refreshToken
     if (!rawToken) {
       return reply.code(401).send({
         statusCode: 401,
