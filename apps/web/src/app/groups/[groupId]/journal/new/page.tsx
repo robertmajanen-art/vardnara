@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '../../../../../lib/api'
+import { audioToWavBase64 } from '../../../../../lib/encodeWav'
 import styles from '../../../../login/login.module.css'
 import pageStyles from './new.module.css'
 
@@ -23,14 +24,6 @@ type ParsedJournal = {
   tags?: string[]
 }
 
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onloadend = () => resolve((reader.result as string).split(',')[1]!)
-    reader.onerror = reject
-    reader.readAsDataURL(blob)
-  })
-}
 
 export default function NewJournalPage({ params }: { params: { groupId: string } }) {
   const router = useRouter()
@@ -61,8 +54,8 @@ export default function NewJournalPage({ params }: { params: { groupId: string }
         setProcessing(true)
         try {
           const blob = new Blob(chunksRef.current, { type: mimeType })
-          const base64 = await blobToBase64(blob)
-          const { transcript } = await api.post<{ transcript: string }>('/api/voice/transcribe', { audio: base64, mimeType })
+          const base64 = await audioToWavBase64(blob)
+          const { transcript } = await api.post<{ transcript: string }>('/api/voice/transcribe', { audio: base64, mimeType: 'audio/wav' })
           const parsed = await api.post<ParsedJournal>('/api/voice/parse-form', { transcript })
           if (parsed.formType === 'journal') {
             if (parsed.entryType && ENTRY_TYPES.includes(parsed.entryType as never)) setEntryType(parsed.entryType)
