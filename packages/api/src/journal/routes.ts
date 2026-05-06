@@ -30,6 +30,7 @@ export const journalRoutes: FastifyPluginAsync = async (fastify) => {
         select: {
           id: true, groupId: true, authorId: true, entryType: true,
           title: true, body: true, tags: true, createdAt: true, updatedAt: true,
+          author: { select: { id: true, email: true } },
         },
       })
       const hasMore = entries.length > limit

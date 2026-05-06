@@ -78,17 +78,20 @@ export default function VoiceJournalPage({ params }: { params: { groupId: string
 
       setPhase('parsing')
       const result = await api.post<ParsedJournal>('/api/voice/parse-form', { transcript })
-      if (result.formType === 'journal') {
-        setParsed(result)
+      setParsed(result)
+      if (result.formType === 'journal' && result.title && result.body) {
         setEntryType(result.entryType && ENTRY_TYPES.includes(result.entryType) ? result.entryType : 'NOTE')
-        setTitle(result.title ?? '')
-        setBody(result.body ?? '')
+        setTitle(result.title)
+        setBody(result.body)
         setTags(result.tags ?? [])
-        setPhase('preview')
       } else {
-        setErrorMsg('Röstmeddelandet tolkades inte som en dagbokspost. Försök igen.')
-        setPhase('error')
+        // Fall back to raw transcript — never reject
+        setEntryType('NOTE')
+        setTitle('Röstanteckning')
+        setBody(result.rawText ?? transcript)
+        setTags([])
       }
+      setPhase('preview')
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'Något gick fel.')
       setPhase('error')

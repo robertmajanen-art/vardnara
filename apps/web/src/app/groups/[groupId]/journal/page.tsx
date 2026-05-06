@@ -11,6 +11,7 @@ type JournalEntry = {
   body: string
   tags: string[]
   createdAt: string
+  author?: { id: string; email: string }
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -61,10 +62,7 @@ export default function JournalPage({ params }: { params: { groupId: string } })
     <div className={styles.page}>
       <header className={styles.header}>
         <h1>Dagbok</h1>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <a href={`/groups/${params.groupId}/journal/voice`} className={styles.addBtn} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}>🎤 Röst</a>
-          <a href={`/groups/${params.groupId}/journal/new`} className={styles.addBtn}>+ Ny post</a>
-        </div>
+        <a href={`/groups/${params.groupId}/journal/new`} className={styles.addBtn}>+ Ny post</a>
       </header>
 
       <div className={styles.filters}>
@@ -97,6 +95,9 @@ export default function JournalPage({ params }: { params: { groupId: string } })
                   </span>
                 </div>
                 <div className={styles.itemTitle}>{e.title}</div>
+                {e.author && (
+                  <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>{e.author.email}</span>
+                )}
                 <p className={styles.description}>{e.body}</p>
                 {e.tags.length > 0 && (
                   <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap', marginTop: '0.375rem' }}>

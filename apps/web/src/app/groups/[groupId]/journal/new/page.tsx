@@ -22,8 +22,8 @@ type ParsedJournal = {
   title?: string
   body?: string
   tags?: string[]
+  rawText?: string
 }
-
 
 export default function NewJournalPage({ params }: { params: { groupId: string } }) {
   const router = useRouter()
@@ -35,8 +35,12 @@ export default function NewJournalPage({ params }: { params: { groupId: string }
   const [error, setError] = useState('')
   const [recording, setRecording] = useState(false)
   const [processing, setProcessing] = useState(false)
+  const [seconds, setSeconds] = useState(0)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<BlobPart[]>([])
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
   async function startVoice() {
     setError('')
@@ -57,13 +61,16 @@ export default function NewJournalPage({ params }: { params: { groupId: string }
           const base64 = await audioToWavBase64(blob)
           const { transcript } = await api.post<{ transcript: string }>('/api/voice/transcribe', { audio: base64, mimeType: 'audio/wav' })
           const parsed = await api.post<ParsedJournal>('/api/voice/parse-form', { transcript })
-          if (parsed.formType === 'journal') {
+          if (parsed.formType === 'journal' && parsed.title && parsed.body) {
             if (parsed.entryType && ENTRY_TYPES.includes(parsed.entryType as never)) setEntryType(parsed.entryType)
-            if (parsed.title) setTitle(parsed.title)
-            if (parsed.body) setBody(parsed.body)
+            setTitle(parsed.title)
+            setBody(parsed.body)
             if (parsed.tags?.length) setTagsInput(parsed.tags.join(', '))
           } else {
-            setError('Kunde inte tolka som dagbokspost. Försök igen.')
+            // Fall back to raw transcript — never reject
+            setEntryType('NOTE')
+            setTitle('Röstanteckning')
+            setBody(parsed.rawText ?? transcript)
           }
         } catch (err: unknown) {
           setError(err instanceof Error ? err.message : 'Röstparsning misslyckades.')
@@ -73,13 +80,16 @@ export default function NewJournalPage({ params }: { params: { groupId: string }
       }
       recorder.start()
       mediaRecorderRef.current = recorder
+      setSeconds(0)
       setRecording(true)
+      timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000)
     } catch {
       setError('Mikrofonåtkomst nekad. Kontrollera webbläsarens behörigheter.')
     }
   }
 
   function stopVoice() {
+    if (timerRef.current) clearInterval(timerRef.current)
     mediaRecorderRef.current?.stop()
   }
 
@@ -105,16 +115,26 @@ export default function NewJournalPage({ params }: { params: { groupId: string }
       </div>
 
       <form onSubmit={handleSubmit} className={styles.form}>
-        <div className={pageStyles.voiceRow}>
-          <span className={pageStyles.voiceHint}>Fyll i med röst</span>
-          <button
-            type="button"
-            className={`${pageStyles.micBtn} ${recording ? pageStyles.micActive : ''}`}
-            onClick={recording ? stopVoice : startVoice}
-            disabled={processing}
-          >
-            {recording ? '⏹ Klar' : processing ? '⏳ Bearbetar...' : '🎤 Röst'}
-          </button>
+        {/* Voice recording block */}
+        <div className={pageStyles.voiceBlock}>
+          {!recording && !processing && (
+            <button type="button" className={pageStyles.recordBtn} onClick={startVoice}>
+              🎤 Spela in med röst
+            </button>
+          )}
+          {recording && (
+            <div className={pageStyles.recordingRow}>
+              <span className={pageStyles.recDot} />
+              <span className={pageStyles.timer}>{formatTime(seconds)}</span>
+              <button type="button" className={pageStyles.stopRecBtn} onClick={stopVoice}>Klar</button>
+            </div>
+          )}
+          {processing && (
+            <div className={pageStyles.processingRow}>
+              <span className={pageStyles.spinner} />
+              <span>Bearbetar...</span>
+            </div>
+          )}
         </div>
 
         <label className={styles.label}>
