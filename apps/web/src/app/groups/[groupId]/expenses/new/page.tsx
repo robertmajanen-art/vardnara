@@ -43,7 +43,7 @@ export default function NewExpensePage({ params }: { params: { groupId: string }
         description,
         expenseDate,
       })
-      router.push(`/groups/${params.groupId}/expenses`)
+      router.push(`/groups/${params.groupId}/expenses` as never)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Något gick fel.')
       setSaving(false)

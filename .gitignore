@@ -46,3 +46,4 @@ azure/
 deploy_pkg/
 api-deploy.zip
 web-deploy.zip
+set-anthropic-key.ps1

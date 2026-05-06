@@ -100,7 +100,7 @@ export default function NewJournalPage({ params }: { params: { groupId: string }
     try {
       const tags = tagsInput.split(',').map((t) => t.trim()).filter(Boolean)
       await api.post(`/api/groups/${params.groupId}/journal`, { entryType, title, body, tags })
-      router.push(`/groups/${params.groupId}/journal`)
+      router.push(`/groups/${params.groupId}/journal` as never)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Något gick fel.')
       setSaving(false)

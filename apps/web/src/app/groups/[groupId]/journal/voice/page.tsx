@@ -12,6 +12,7 @@ type ParsedJournal = {
   title?: string
   body?: string
   tags?: string[]
+  rawText?: string
 }
 
 const ENTRY_TYPES = ['NOTE', 'OBSERVATION', 'INCIDENT', 'MOOD', 'HEALTH_UPDATE']
@@ -102,7 +103,7 @@ export default function VoiceJournalPage({ params }: { params: { groupId: string
     setPhase('saving')
     try {
       await api.post(`/api/groups/${params.groupId}/journal`, { entryType, title, body, tags })
-      router.push(`/groups/${params.groupId}/journal`)
+      router.push(`/groups/${params.groupId}/journal` as never)
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : 'Sparning misslyckades.')
       setPhase('error')
