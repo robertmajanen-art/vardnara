@@ -24,6 +24,7 @@ export default function GroupLayout({
 }) {
   const { t } = useTranslation()
   const [email, setEmail] = useState<string | null>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
     const token = localStorage.getItem('accessToken')
@@ -48,6 +49,46 @@ export default function GroupLayout({
 
   return (
     <div className={styles.shell}>
+      {/* Mobile top bar */}
+      <div className={styles.mobileBar}>
+        <a href="/groups" className={styles.mobileLogo}>Vardnära</a>
+        <button
+          className={styles.hamburger}
+          onClick={() => setMenuOpen((o) => !o)}
+          aria-label="Öppna meny"
+        >
+          <span className={`${styles.hamburgerLine} ${menuOpen ? styles.open1 : ''}`} />
+          <span className={`${styles.hamburgerLine} ${menuOpen ? styles.open2 : ''}`} />
+          <span className={`${styles.hamburgerLine} ${menuOpen ? styles.open3 : ''}`} />
+        </button>
+      </div>
+
+      {/* Mobile drawer overlay */}
+      {menuOpen && (
+        <div className={styles.drawerOverlay} onClick={() => setMenuOpen(false)}>
+          <nav className={styles.drawer} onClick={(e) => e.stopPropagation()}>
+            <ul className={styles.drawerList}>
+              {NAV_ITEMS.map((item) => (
+                <li key={item.href}>
+                  <a
+                    href={`/groups/${params.groupId}/${item.href}`}
+                    className={styles.drawerItem}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    {t(item.labelKey)}
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <div className={styles.drawerUser}>
+              {email && <span className={styles.userEmail}>{email}</span>}
+              <button onClick={handleLogout} className={styles.logoutBtn}>Logga ut</button>
+            </div>
+          </nav>
+        </div>
+      )}
+
+      {/* Desktop sidebar */}
       <nav className={styles.sidebar}>
         <a href="/groups" className={styles.logo}>Vardnära</a>
         <ul className={styles.navList}>
@@ -67,6 +108,7 @@ export default function GroupLayout({
           <button onClick={handleLogout} className={styles.logoutBtn}>Logga ut</button>
         </div>
       </nav>
+
       <main className={styles.main}>{children}</main>
     </div>
   )
