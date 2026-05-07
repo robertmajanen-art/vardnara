@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, saveTokens } from '../../lib/api'
+import Logo from '../../components/Logo'
 import styles from './login.module.css'
 
 export default function LoginPage() {
@@ -34,7 +35,7 @@ export default function LoginPage() {
   return (
     <div className={styles.container}>
       <div className={styles.card}>
-        <h1 className={styles.title}>💜 VårdNära</h1>
+        <div style={{ marginBottom: '1rem' }}><Logo variant="light" height={52} /></div>
         <p className={styles.subtitle}>Logga in på ditt konto</p>
         <form onSubmit={handleSubmit} className={styles.form}>
           <label className={styles.label}>

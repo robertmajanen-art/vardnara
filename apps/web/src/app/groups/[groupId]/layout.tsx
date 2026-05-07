@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { clearTokens } from '../../../lib/api'
+import Logo from '../../../components/Logo'
 import styles from './group.module.css'
 
 const NAV_ITEMS = [
@@ -51,7 +52,7 @@ export default function GroupLayout({
     <div className={styles.shell}>
       {/* Mobile top bar */}
       <div className={styles.mobileBar}>
-        <a href="/groups" className={styles.mobileLogo}>💜 VårdNära</a>
+        <a href="/groups" className={styles.mobileLogo}><Logo variant="dark" height={36} /></a>
         <button
           className={styles.hamburger}
           onClick={() => setMenuOpen((o) => !o)}
@@ -90,7 +91,7 @@ export default function GroupLayout({
 
       {/* Desktop sidebar */}
       <nav className={styles.sidebar}>
-        <a href="/groups" className={styles.logo}>💜 VårdNära</a>
+        <a href="/groups" className={styles.logo}><Logo variant="dark" height={44} /></a>
         <ul className={styles.navList}>
           {NAV_ITEMS.map((item) => (
             <li key={item.href}>

@@ -16,12 +16,18 @@
 }
 
 .logo {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #d4b8e0;
+  display: block;
   padding: 0 1.25rem;
   margin-bottom: 2rem;
   text-decoration: none;
+  line-height: 0;
+}
+
+.mobileLogo {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  line-height: 0;
 }
 
 .navList {
@@ -170,13 +176,7 @@
   gap: 0.5rem;
 }
 
-/* Mobile logo in top bar */
-.mobileLogo {
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: #d4b8e0;
-  text-decoration: none;
-}
+/* Mobile logo in top bar — base styles defined above */
 
 @media (max-width: 768px) {
   .shell {
