@@ -96,15 +96,8 @@ export default function CalendarPage({ params }: { params: { groupId: string } }
           const k = dayKey(day)
           const dayApts = aptMap.get(k) ?? []
           const isToday = k === todayStr
-          const showFull = isToday || dayApts.length > 0
 
-          if (!showFull) {
-            return (
-              <div key={k} className={styles.emptyDay}>
-                <span className={styles.emptyDayLabel}>{formatDayLabel(day)}</span>
-              </div>
-            )
-          }
+          if (dayApts.length === 0) return null
 
           return (
             <section key={k} ref={isToday ? todayRef : undefined} className={styles.daySection}>
@@ -113,10 +106,7 @@ export default function CalendarPage({ params }: { params: { groupId: string } }
                 {isToday && <span className={styles.todayBadge}>Idag</span>}
               </h2>
 
-              {dayApts.length === 0 ? (
-                <p className={styles.noApts}>Inga besök inbokade</p>
-              ) : (
-                <ul className={styles.aptList}>
+              <ul className={styles.aptList}>
                   {dayApts.map((apt) => {
                     const start = new Date(apt.startTime)
                     const end = apt.endTime ? new Date(apt.endTime) : null
@@ -139,7 +129,6 @@ export default function CalendarPage({ params }: { params: { groupId: string } }
                     )
                   })}
                 </ul>
-              )}
             </section>
           )
         })}
