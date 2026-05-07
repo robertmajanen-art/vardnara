@@ -42,8 +42,13 @@ export default function JournalPage({ params }: { params: { groupId: string } })
 
   async function handleDelete(entryId: string) {
     if (!window.confirm('Ta bort dagboksposten permanent?')) return
-    await api.delete(`/api/groups/${params.groupId}/journal/${entryId}`)
+    const snapshot = entries
     setEntries(prev => prev.filter(e => e.id !== entryId))
+    try {
+      await api.delete(`/api/groups/${params.groupId}/journal/${entryId}`)
+    } catch {
+      setEntries(snapshot)
+    }
   }
 
   useEffect(() => {

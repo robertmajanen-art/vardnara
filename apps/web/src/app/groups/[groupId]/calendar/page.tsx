@@ -45,8 +45,13 @@ export default function CalendarPage({ params }: { params: { groupId: string } }
 
   async function handleDelete(aptId: string) {
     if (!window.confirm('Ta bort besöket permanent?')) return
-    await api.delete(`/api/groups/${params.groupId}/appointments/${aptId}`)
+    const snapshot = appointments
     setAppointments(prev => prev.filter(a => a.id !== aptId))
+    try {
+      await api.delete(`/api/groups/${params.groupId}/appointments/${aptId}`)
+    } catch {
+      setAppointments(snapshot)
+    }
   }
 
   const { fromStr, toStr, todayStr } = useMemo(() => {

@@ -264,8 +264,13 @@ export default function TasksPage({ params }: { params: { groupId: string } }) {
 
   async function handleDelete(taskId: string) {
     if (!window.confirm('Ta bort uppgiften permanent?')) return
-    await api.delete(`/api/groups/${params.groupId}/tasks/${taskId}`)
+    const snapshot = allTasks
     setAllTasks(prev => prev.filter(t => t.id !== taskId))
+    try {
+      await api.delete(`/api/groups/${params.groupId}/tasks/${taskId}`)
+    } catch {
+      setAllTasks(snapshot)
+    }
   }
 
   const filters = [
