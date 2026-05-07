@@ -71,6 +71,7 @@ export default function CalendarPage({ params }: { params: { groupId: string } }
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const nowRef = useRef<HTMLDivElement>(null)
+  const todayRef = useRef<HTMLElement>(null)
 
   // Stable date range computed once on mount
   const { fromStr, toStr, todayStr } = useMemo(() => {
@@ -91,11 +92,11 @@ export default function CalendarPage({ params }: { params: { groupId: string } }
       .finally(() => setLoading(false))
   }, [params.groupId, fromStr, toStr])
 
-  // Scroll "now" line to center after data loads
+  // Scroll so today's section header is at the top of the viewport
   useEffect(() => {
     if (!loading) {
       requestAnimationFrame(() => {
-        nowRef.current?.scrollIntoView({ behavior: 'instant', block: 'center' })
+        todayRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' })
       })
     }
   }, [loading])
@@ -148,7 +149,7 @@ export default function CalendarPage({ params }: { params: { groupId: string } }
           }
 
           return (
-            <section key={k} className={styles.daySection}>
+            <section key={k} ref={isToday ? todayRef : undefined} className={styles.daySection}>
               <h2 className={`${styles.dayHeader} ${isToday ? styles.todayHeader : ''}`}>
                 {formatDayLabel(day)}
                 {isToday && <span className={styles.todayBadge}>Idag</span>}
@@ -192,8 +193,9 @@ export default function CalendarPage({ params }: { params: { groupId: string } }
                       style={{
                         top,
                         height,
-                        background: `${color}18`,
+                        background: 'var(--color-bg)',
                         borderLeftColor: color,
+                        boxShadow: `0 0 0 1px ${color}30`,
                       }}
                     >
                       <div className={styles.aptTime} style={{ color }}>{timeStr}</div>

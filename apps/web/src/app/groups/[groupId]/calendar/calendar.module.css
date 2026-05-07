@@ -61,7 +61,7 @@
 
 /* Day section with appointments or today */
 .daySection {
-  /* no extra styles needed */
+  scroll-margin-top: 56px;   /* account for sticky .header height on desktop */
 }
 
 .dayHeader {
@@ -176,6 +176,7 @@
   color: inherit;
   box-sizing: border-box;
   transition: box-shadow 0.12s;
+  z-index: 2;    /* sit above the time-mark lines */
 }
 
 .aptCard:hover {
@@ -230,5 +231,9 @@
 
   .dayHeader {
     top: 94px;  /* below mobile top bar + page header */
+  }
+
+  .daySection {
+    scroll-margin-top: 104px;  /* 48px mobile bar + 56px page header */
   }
 }

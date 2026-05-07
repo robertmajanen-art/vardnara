@@ -16,25 +16,40 @@ const TYPE_LABELS: Record<string, string> = {
   OTHER: 'Övrigt',
 }
 
-/** Round up to nearest 10 minutes, return datetime-local string (UTC-based, matches input format) */
-function roundedDatetimeStr(offsetMs: number): string {
-  const tenMin = 10 * 60 * 1000
-  const d = new Date(Math.ceil((Date.now() + offsetMs) / tenMin) * tenMin)
-  d.setSeconds(0, 0)
-  return d.toISOString().slice(0, 16)
+/** Format a Date as a local datetime-local string (YYYY-MM-DDTHH:MM) */
+function localStr(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-function addMins(datetimeStr: string, mins: number): string {
-  const d = new Date(datetimeStr)
-  d.setMinutes(d.getMinutes() + mins)
-  return d.toISOString().slice(0, 16)
+/** Round up to nearest 10 minutes using local time */
+function roundedLocalStr(offsetMs: number): string {
+  const tenMin = 10 * 60 * 1000
+  return localStr(new Date(Math.ceil((Date.now() + offsetMs) / tenMin) * tenMin))
+}
+
+/** Add minutes to a local datetime-local string, return local string */
+function addMinsLocal(localDt: string, mins: number): string {
+  const [datePart, timePart] = localDt.split('T')
+  const [y, mo, d] = datePart.split('-').map(Number)
+  const [h, mi] = timePart.split(':').map(Number)
+  return localStr(new Date(y, mo - 1, d, h, mi + mins))
+}
+
+/** Round minute component to nearest 10 in a local datetime-local string */
+function roundTo10Min(localDt: string): string {
+  const [datePart, timePart] = localDt.split('T')
+  if (!timePart) return localDt
+  const [y, mo, d] = datePart.split('-').map(Number)
+  const [h, mi] = timePart.split(':').map(Number)
+  return localStr(new Date(y, mo - 1, d, h, Math.round(mi / 10) * 10))
 }
 
 export default function NewAppointmentPage({ params }: { params: { groupId: string } }) {
   const router = useRouter()
 
-  const startDefault = roundedDatetimeStr(60 * 60 * 1000)   // 1 hour from now
-  const endDefault = addMins(startDefault, 30)               // 30 min after start
+  const startDefault = roundedLocalStr(60 * 60 * 1000)    // 1 hour from now, rounded
+  const endDefault = addMinsLocal(startDefault, 30)        // 30 min after start
 
   const [type, setType] = useState('HEALTHCARE')
   const [title, setTitle] = useState('')
@@ -55,15 +70,20 @@ export default function NewAppointmentPage({ params }: { params: { groupId: stri
     if (p.get('startTime')) {
       const s = p.get('startTime')!
       setStartTime(s)
-      setEndTime(p.get('endTime') ?? addMins(s, 30))
+      setEndTime(p.get('endTime') ?? addMinsLocal(s, 30))
     }
     if (p.get('location')) setLocation(p.get('location')!)
     if (p.get('notes')) setNotes(p.get('notes')!)
   }, [])
 
   function handleStartChange(val: string) {
-    setStartTime(val)
-    setEndTime(addMins(val, 30))
+    const rounded = roundTo10Min(val)
+    setStartTime(rounded)
+    setEndTime(addMinsLocal(rounded, 30))
+  }
+
+  function handleEndChange(val: string) {
+    setEndTime(roundTo10Min(val))
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -144,7 +164,7 @@ export default function NewAppointmentPage({ params }: { params: { groupId: stri
           <input
             type="datetime-local"
             value={endTime}
-            onChange={(e) => setEndTime(e.target.value)}
+            onChange={(e) => handleEndChange(e.target.value)}
             className={styles.input}
             step="600"
           />
