@@ -22,20 +22,27 @@ function DateTimePicker({ value, onChange, inputClass }: {
   inputClass: string
 }) {
   const { date, hour, minute } = splitDt(value)
-  const emit = (d: string, h: string, m: string) => onChange(`${d}T${h}:${m}`)
+  // Local state for the date field so manual typing doesn't discard partial input
+  const [localDate, setLocalDate] = useState(date)
+  useEffect(() => { setLocalDate(splitDt(value).date) }, [value])
+
+  const emit = (d: string, h: string, m: string) => {
+    if (d.length === 10) onChange(`${d}T${h}:${m}`)
+  }
+
   return (
     <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
       <input
         type="date"
-        value={date}
-        onChange={(e) => emit(e.target.value, hour, minute)}
+        value={localDate}
+        onChange={(e) => { setLocalDate(e.target.value); emit(e.target.value, hour, minute) }}
         className={inputClass}
         style={{ flex: '1 1 140px', minWidth: 0 }}
         required
       />
       <select
         value={hour}
-        onChange={(e) => emit(date, e.target.value, minute)}
+        onChange={(e) => emit(localDate, e.target.value, minute)}
         className={inputClass}
         style={{ flex: '0 0 auto' }}
       >
@@ -43,7 +50,7 @@ function DateTimePicker({ value, onChange, inputClass }: {
       </select>
       <select
         value={minute}
-        onChange={(e) => emit(date, hour, e.target.value)}
+        onChange={(e) => emit(localDate, hour, e.target.value)}
         className={inputClass}
         style={{ flex: '0 0 auto' }}
       >
@@ -142,10 +149,10 @@ export default function NewAppointmentPage({ params }: { params: { groupId: stri
       await api.post(`/api/groups/${params.groupId}/appointments`, {
         type,
         title,
-        location: location || null,
+        ...(location ? { location } : {}),
         startTime: new Date(startTime).toISOString(),
-        endTime: endTime ? new Date(endTime).toISOString() : null,
-        notes: notes || null,
+        ...(endTime ? { endTime: new Date(endTime).toISOString() } : {}),
+        ...(notes ? { notes } : {}),
       })
       router.push(`/groups/${params.groupId}/calendar` as never)
     } catch (err: unknown) {
