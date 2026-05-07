@@ -41,9 +41,9 @@ const CY = 190
 const R = 100            // clock radius
 const CARD_W = 110
 const CARD_H = 30
+const CARD_GAP = 5       // min gap between stacked cards
 const LEFT_X = CX - R - 30   // 120 — right edge of left cards / line endpoint
 const RIGHT_X = CX + R + 30  // 380 — left edge of right cards / line endpoint
-const V_MARGIN = 28
 
 function taskAngle(dueDate: string): number {
   const d = new Date(dueDate)
@@ -62,9 +62,36 @@ function cardColor(task: Task, now: Date): string {
   return '#8b5e9e'
 }
 
-function CardY(idx: number, total: number): number {
-  const slot = (SVG_H - V_MARGIN * 2) / Math.max(total, 1)
-  return V_MARGIN + slot * idx + slot / 2 - CARD_H / 2
+/**
+ * Place n labels as close as possible to their ideal Y (card center),
+ * resolving overlaps while preserving order. Cards may go outside SVG
+ * bounds — SVG uses overflow="visible".
+ */
+function placeLabels(idealCenterY: number[]): number[] {
+  const n = idealCenterY.length
+  if (n === 0) return []
+  const step = CARD_H + CARD_GAP
+
+  // Initial: card top = ideal center - half height
+  let pos = idealCenterY.map(y => y - CARD_H / 2)
+
+  for (let iter = 0; iter < 30; iter++) {
+    // Pull toward ideal (damped)
+    for (let i = 0; i < n; i++) {
+      const ideal = idealCenterY[i] - CARD_H / 2
+      pos[i] += (ideal - pos[i]) * 0.4
+    }
+    // Forward pass: push down to clear previous card
+    for (let i = 1; i < n; i++) {
+      if (pos[i] < pos[i - 1] + step) pos[i] = pos[i - 1] + step
+    }
+    // Backward pass: push up to clear next card
+    for (let i = n - 2; i >= 0; i--) {
+      if (pos[i] > pos[i + 1] - step) pos[i] = pos[i + 1] - step
+    }
+  }
+
+  return pos
 }
 
 function todayKey(): string {
@@ -82,17 +109,25 @@ function ClockView({ tasks, groupId }: { tasks: Task[]; groupId: string }) {
       const d = new Date(t.dueDate)
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` === key
     })
-    .map((t) => ({ task: t, θ: taskAngle(t.dueDate!) }))
+    .map((t) => {
+      const θ = taskAngle(t.dueDate!)
+      const [px, py] = clockEdge(θ)
+      return { task: t, θ, px, py }
+    })
 
-  const right = todayTasks.filter(({ θ }) => Math.sin(θ) >= 0).sort((a, b) => a.θ - b.θ)
-  const left  = todayTasks.filter(({ θ }) => Math.sin(θ) <  0).sort((a, b) => b.θ - a.θ)
+  // Both sides sorted by py ascending → same card order top-to-bottom → lines never cross
+  const right = todayTasks.filter(({ θ }) => Math.sin(θ) >= 0).sort((a, b) => a.py - b.py)
+  const left  = todayTasks.filter(({ θ }) => Math.sin(θ) <  0).sort((a, b) => a.py - b.py)
+
+  const rightTops = placeLabels(right.map(r => r.py))
+  const leftTops  = placeLabels(left.map(l => l.py))
 
   // Current time hand angles
   const nowH = ((now.getHours() % 12 + now.getMinutes() / 60) / 12) * Math.PI * 2
   const nowM = (now.getMinutes() / 60) * Math.PI * 2
 
   return (
-    <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} width="100%" aria-label="Uppgifter idag">
+    <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} width="100%" overflow="visible" aria-label="Uppgifter idag">
 
       {/* "Idag" label */}
       <text x={CX} y={14} textAnchor="middle" fontSize={12} fontWeight={700}
@@ -141,9 +176,8 @@ function ClockView({ tasks, groupId }: { tasks: Task[]; groupId: string }) {
       <circle cx={CX} cy={CY} r={4} fill="#d4b8e0" />
 
       {/* Right-side task cards */}
-      {right.map(({ task, θ }, i) => {
-        const [px, py] = clockEdge(θ)
-        const cy2 = CardY(i, right.length)
+      {right.map(({ task, px, py }, i) => {
+        const cy2 = rightTops[i]
         const mid = cy2 + CARD_H / 2
         const fill = cardColor(task, now)
         const label = task.title.length > 14 ? task.title.slice(0, 13) + '…' : task.title
@@ -151,19 +185,16 @@ function ClockView({ tasks, groupId }: { tasks: Task[]; groupId: string }) {
           <a key={task.id} href={`/groups/${groupId}/tasks/${task.id}`} style={{ cursor: 'pointer' }}>
             <path d={`M ${px},${py} L ${RIGHT_X},${py} L ${RIGHT_X},${mid}`}
               stroke={fill} strokeWidth={1.2} opacity={0.55} fill="none" />
-            <rect x={RIGHT_X} y={cy2} width={CARD_W} height={CARD_H} rx={6} fill={fill} opacity={0.92} />
-            <rect x={RIGHT_X} y={cy2} width={CARD_W} height={CARD_H} rx={6} fill="transparent"
-              style={{ cursor: 'pointer' }} />
-            <text x={RIGHT_X + 7} y={cy2 + CARD_H / 2} dominantBaseline="central"
+            <rect x={RIGHT_X} y={cy2} width={CARD_W} height={CARD_H} rx={6} fill={fill} />
+            <text x={RIGHT_X + CARD_W / 2} y={mid} textAnchor="middle" dominantBaseline="central"
               fontSize={11} fill="white" fontWeight={600}>{label}</text>
           </a>
         )
       })}
 
       {/* Left-side task cards */}
-      {left.map(({ task, θ }, i) => {
-        const [px, py] = clockEdge(θ)
-        const cy2 = CardY(i, left.length)
+      {left.map(({ task, px, py }, i) => {
+        const cy2 = leftTops[i]
         const mid = cy2 + CARD_H / 2
         const fill = cardColor(task, now)
         const label = task.title.length > 14 ? task.title.slice(0, 13) + '…' : task.title
@@ -171,9 +202,9 @@ function ClockView({ tasks, groupId }: { tasks: Task[]; groupId: string }) {
           <a key={task.id} href={`/groups/${groupId}/tasks/${task.id}`} style={{ cursor: 'pointer' }}>
             <path d={`M ${px},${py} L ${LEFT_X},${py} L ${LEFT_X},${mid}`}
               stroke={fill} strokeWidth={1.2} opacity={0.55} fill="none" />
-            <rect x={LEFT_X - CARD_W} y={cy2} width={CARD_W} height={CARD_H} rx={6} fill={fill} opacity={0.92} />
-            <text x={LEFT_X - 7} y={cy2 + CARD_H / 2} dominantBaseline="central"
-              fontSize={11} fill="white" fontWeight={600} textAnchor="end">{label}</text>
+            <rect x={LEFT_X - CARD_W} y={cy2} width={CARD_W} height={CARD_H} rx={6} fill={fill} />
+            <text x={LEFT_X - CARD_W / 2} y={mid} textAnchor="middle" dominantBaseline="central"
+              fontSize={11} fill="white" fontWeight={600}>{label}</text>
           </a>
         )
       })}
