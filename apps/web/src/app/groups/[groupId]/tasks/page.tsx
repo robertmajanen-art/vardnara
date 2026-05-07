@@ -72,7 +72,7 @@ function todayKey(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function ClockView({ tasks }: { tasks: Task[] }) {
+function ClockView({ tasks, groupId }: { tasks: Task[]; groupId: string }) {
   const now = new Date()
   const key = todayKey()
 
@@ -148,12 +148,15 @@ function ClockView({ tasks }: { tasks: Task[] }) {
         const fill = cardColor(task, now)
         const label = task.title.length > 14 ? task.title.slice(0, 13) + '…' : task.title
         return (
-          <g key={task.id}>
-            <line x1={px} y1={py} x2={RIGHT_X} y2={mid} stroke={fill} strokeWidth={1.2} opacity={0.55} />
-            <rect x={RIGHT_X} y={cy2} width={CARD_W} height={CARD_H} rx={6} fill={fill} />
+          <a key={task.id} href={`/groups/${groupId}/tasks/${task.id}`} style={{ cursor: 'pointer' }}>
+            <path d={`M ${px},${py} L ${RIGHT_X},${py} L ${RIGHT_X},${mid}`}
+              stroke={fill} strokeWidth={1.2} opacity={0.55} fill="none" />
+            <rect x={RIGHT_X} y={cy2} width={CARD_W} height={CARD_H} rx={6} fill={fill} opacity={0.92} />
+            <rect x={RIGHT_X} y={cy2} width={CARD_W} height={CARD_H} rx={6} fill="transparent"
+              style={{ cursor: 'pointer' }} />
             <text x={RIGHT_X + 7} y={cy2 + CARD_H / 2} dominantBaseline="central"
               fontSize={11} fill="white" fontWeight={600}>{label}</text>
-          </g>
+          </a>
         )
       })}
 
@@ -165,12 +168,13 @@ function ClockView({ tasks }: { tasks: Task[] }) {
         const fill = cardColor(task, now)
         const label = task.title.length > 14 ? task.title.slice(0, 13) + '…' : task.title
         return (
-          <g key={task.id}>
-            <line x1={px} y1={py} x2={LEFT_X} y2={mid} stroke={fill} strokeWidth={1.2} opacity={0.55} />
-            <rect x={LEFT_X - CARD_W} y={cy2} width={CARD_W} height={CARD_H} rx={6} fill={fill} />
+          <a key={task.id} href={`/groups/${groupId}/tasks/${task.id}`} style={{ cursor: 'pointer' }}>
+            <path d={`M ${px},${py} L ${LEFT_X},${py} L ${LEFT_X},${mid}`}
+              stroke={fill} strokeWidth={1.2} opacity={0.55} fill="none" />
+            <rect x={LEFT_X - CARD_W} y={cy2} width={CARD_W} height={CARD_H} rx={6} fill={fill} opacity={0.92} />
             <text x={LEFT_X - 7} y={cy2 + CARD_H / 2} dominantBaseline="central"
               fontSize={11} fill="white" fontWeight={600} textAnchor="end">{label}</text>
-          </g>
+          </a>
         )
       })}
 
@@ -311,7 +315,7 @@ export default function TasksPage({ params }: { params: { groupId: string } }) {
 
         {/* ── Clock view ── */}
         <div className={styles.clockSection}>
-          <ClockView tasks={allTasks} />
+          <ClockView tasks={allTasks} groupId={params.groupId} />
         </div>
       </div>
     </div>
