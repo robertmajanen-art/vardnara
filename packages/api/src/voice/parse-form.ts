@@ -31,9 +31,23 @@ För journalanteckning (journal):
   "entryType": "NOTE"|"OBSERVATION"|"INCIDENT"|"MOOD"|"HEALTH_UPDATE",
   "title": "string",
   "body": "string",
-  "tags": ["string"]
+  "tags": ["string"],
+  "appointment": null
 }
 
+Om journalanteckningen EXPLICIT nämner ett framtida möte, besök, tid eller händelse med ett datum eller klockslag, sätt "appointment" till:
+{
+  "type": "HEALTHCARE"|"SCHOOL"|"SOCIAL"|"THERAPY"|"FAMILY"|"OTHER",
+  "title": "string",
+  "startTime": "ISO 8601 datetime",
+  "endTime": "ISO 8601 datetime eller null",
+  "location": "string eller null",
+  "notes": "string eller null"
+}
+
+Annars sätt "appointment" till null i journalsvaret.
+
+Dagens datum är ${new Date().toISOString().slice(0, 10)}.
 Om du inte kan avgöra typen, returnera { "formType": "unknown", "rawText": "string" }.
 Returnera ENBART JSON, ingen förklaring.`
 

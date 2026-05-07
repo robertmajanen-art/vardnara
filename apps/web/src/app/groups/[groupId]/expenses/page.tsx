@@ -90,7 +90,7 @@ export default function ExpensesPage({ params }: { params: { groupId: string } }
       ) : (
         <ul className={styles.list}>
           {expenses.map((e) => (
-            <li key={e.id} className={styles.item}>
+            <a key={e.id} href={`/groups/${params.groupId}/expenses/${e.id}`} className={styles.item} style={{ textDecoration: 'none', color: 'inherit' }}>
               <div className={styles.itemMain}>
                 <div className={styles.itemMeta}>
                   <span className={styles.statusBadge} style={{ background: '#e7f1ff', color: '#0d6efd' }}>
@@ -104,7 +104,7 @@ export default function ExpensesPage({ params }: { params: { groupId: string } }
                 <div className={styles.itemTitle}>{e.description}</div>
               </div>
               <div className={expStyles.amount}>{formatSEK(e.amount)}</div>
-            </li>
+            </a>
           ))}
         </ul>
       )}

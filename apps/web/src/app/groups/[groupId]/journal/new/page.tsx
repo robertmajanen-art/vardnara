@@ -16,6 +16,15 @@ const ENTRY_TYPE_LABELS: Record<string, string> = {
   HEALTH_UPDATE: 'Hälsouppdatering',
 }
 
+type AppointmentHint = {
+  type?: string
+  title?: string
+  startTime?: string | null
+  endTime?: string | null
+  location?: string | null
+  notes?: string | null
+}
+
 type ParsedJournal = {
   formType: string
   entryType?: string
@@ -23,6 +32,18 @@ type ParsedJournal = {
   body?: string
   tags?: string[]
   rawText?: string
+  appointment?: AppointmentHint | null
+}
+
+function buildCalendarUrl(groupId: string, apt: AppointmentHint): string {
+  const p = new URLSearchParams()
+  if (apt.title) p.set('title', apt.title)
+  if (apt.type) p.set('type', apt.type)
+  if (apt.startTime) p.set('startTime', apt.startTime.slice(0, 16))
+  if (apt.endTime) p.set('endTime', apt.endTime.slice(0, 16))
+  if (apt.location) p.set('location', apt.location)
+  if (apt.notes) p.set('notes', apt.notes)
+  return `/groups/${groupId}/calendar/new?${p.toString()}`
 }
 
 export default function NewJournalPage({ params }: { params: { groupId: string } }) {
@@ -36,6 +57,8 @@ export default function NewJournalPage({ params }: { params: { groupId: string }
   const [recording, setRecording] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [seconds, setSeconds] = useState(0)
+  const [parsed, setParsed] = useState<ParsedJournal | null>(null)
+  const [pendingAppointment, setPendingAppointment] = useState<AppointmentHint | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<BlobPart[]>([])
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -60,17 +83,17 @@ export default function NewJournalPage({ params }: { params: { groupId: string }
           const blob = new Blob(chunksRef.current, { type: mimeType })
           const base64 = await audioToWavBase64(blob)
           const { transcript } = await api.post<{ transcript: string }>('/api/voice/transcribe', { audio: base64, mimeType: 'audio/wav' })
-          const parsed = await api.post<ParsedJournal>('/api/voice/parse-form', { transcript })
-          if (parsed.formType === 'journal' && parsed.title && parsed.body) {
-            if (parsed.entryType && ENTRY_TYPES.includes(parsed.entryType as never)) setEntryType(parsed.entryType)
-            setTitle(parsed.title)
-            setBody(parsed.body)
-            if (parsed.tags?.length) setTagsInput(parsed.tags.join(', '))
+          const result = await api.post<ParsedJournal>('/api/voice/parse-form', { transcript })
+          setParsed(result)
+          if (result.formType === 'journal' && result.title && result.body) {
+            if (result.entryType && ENTRY_TYPES.includes(result.entryType as never)) setEntryType(result.entryType)
+            setTitle(result.title)
+            setBody(result.body)
+            if (result.tags?.length) setTagsInput(result.tags.join(', '))
           } else {
-            // Fall back to raw transcript — never reject
             setEntryType('NOTE')
             setTitle('Röstanteckning')
-            setBody(parsed.rawText ?? transcript)
+            setBody(result.rawText ?? transcript)
           }
         } catch (err: unknown) {
           setError(err instanceof Error ? err.message : 'Röstparsning misslyckades.')
@@ -99,12 +122,64 @@ export default function NewJournalPage({ params }: { params: { groupId: string }
     setError('')
     try {
       const tags = tagsInput.split(',').map((t) => t.trim()).filter(Boolean)
-      await api.post(`/api/groups/${params.groupId}/journal`, { entryType, title, body, tags })
-      router.push(`/groups/${params.groupId}/journal` as never)
+
+      // Run journal save and appointment detection concurrently
+      const detectPromise: Promise<ParsedJournal | null> = parsed?.appointment !== undefined
+        ? Promise.resolve(parsed)
+        : api.post<ParsedJournal>('/api/voice/parse-form', { transcript: `${title}\n\n${body}` }).catch(() => null)
+
+      const [, detectResult] = await Promise.all([
+        api.post(`/api/groups/${params.groupId}/journal`, { entryType, title, body, tags }),
+        detectPromise,
+      ])
+
+      const apt = parsed?.appointment ?? detectResult?.appointment
+      if (apt?.startTime) {
+        setPendingAppointment(apt)
+        setSaving(false)
+      } else {
+        router.push(`/groups/${params.groupId}/journal` as never)
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Något gick fel.')
       setSaving(false)
     }
+  }
+
+  // Show appointment prompt after save
+  if (pendingAppointment) {
+    return (
+      <div className={pageStyles.page}>
+        <div className={pageStyles.header}>
+          <h1>Post sparad</h1>
+        </div>
+        <div className={pageStyles.appointmentPrompt}>
+          <p className={pageStyles.promptText}>
+            📅 Vi hittade ett framtida besök i din anteckning. Vill du skapa ett kalenderhändelse?
+          </p>
+          {pendingAppointment.title && (
+            <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', margin: 0 }}>
+              <strong>{pendingAppointment.title}</strong>
+              {pendingAppointment.startTime && ` — ${new Intl.DateTimeFormat('sv-SE', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(pendingAppointment.startTime))}`}
+            </p>
+          )}
+          <div className={pageStyles.promptActions}>
+            <a
+              href={buildCalendarUrl(params.groupId, pendingAppointment)}
+              className={pageStyles.promptYes}
+            >
+              Ja, skapa besök
+            </a>
+            <button
+              className={pageStyles.promptNo}
+              onClick={() => router.push(`/groups/${params.groupId}/journal` as never)}
+            >
+              Nej tack
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

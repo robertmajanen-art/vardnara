@@ -75,7 +75,7 @@ export default function TasksPage({ params }: { params: { groupId: string } }) {
         <ul className={styles.list}>
           {tasks.map((task) => (
             <li key={task.id} className={`${styles.item} ${task.status === 'OVERDUE' ? styles.overdue : ''}`}>
-              <div className={styles.itemMain}>
+              <a href={`/groups/${params.groupId}/tasks/${task.id}`} className={styles.itemMain} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
                 <div className={styles.itemTitle}>{task.title}</div>
                 <div className={styles.itemMeta}>
                   <span className={`${styles.statusBadge} ${styles[`status_${task.status}`]}`}>
@@ -93,7 +93,7 @@ export default function TasksPage({ params }: { params: { groupId: string } }) {
                 {task.description && (
                   <p className={styles.description}>{task.description}</p>
                 )}
-              </div>
+              </a>
               {task.status !== 'DONE' && (
                 <button
                   className={styles.completeBtn}

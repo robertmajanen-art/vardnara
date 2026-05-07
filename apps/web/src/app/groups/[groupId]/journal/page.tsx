@@ -84,7 +84,7 @@ export default function JournalPage({ params }: { params: { groupId: string } })
       ) : (
         <ul className={styles.list}>
           {entries.map((e) => (
-            <li key={e.id} className={styles.item}>
+            <a key={e.id} href={`/groups/${params.groupId}/journal/${e.id}`} className={styles.item} style={{ textDecoration: 'none', color: 'inherit' }}>
               <div className={styles.itemMain}>
                 <div className={styles.itemMeta}>
                   <span className={styles.statusBadge} style={{ background: TYPE_COLORS[e.entryType] ?? '#f0f0f0', color: '#333' }}>
@@ -109,7 +109,7 @@ export default function JournalPage({ params }: { params: { groupId: string } })
                   </div>
                 )}
               </div>
-            </li>
+            </a>
           ))}
         </ul>
       )}

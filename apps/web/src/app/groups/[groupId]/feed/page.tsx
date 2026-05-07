@@ -60,9 +60,11 @@ export default function FeedPage({ params }: { params: { groupId: string } }) {
             {items.map((item) => {
               const isRead = item.readBy.length > 0
               return (
-                <li
+                <a
                   key={item.id}
+                  href={`/groups/${params.groupId}/feed/${item.id}`}
                   className={`${styles.item} ${!isRead ? styles.unread : ''}`}
+                  style={{ textDecoration: 'none', color: 'inherit' }}
                   onClick={() => !isRead && markRead(item.id)}
                 >
                   <div className={styles.itemDot} />
@@ -80,7 +82,7 @@ export default function FeedPage({ params }: { params: { groupId: string } }) {
                       )}
                     </div>
                   </div>
-                </li>
+                </a>
               )
             })}
           </ul>

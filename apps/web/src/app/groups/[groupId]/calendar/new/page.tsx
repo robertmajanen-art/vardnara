@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '../../../../../lib/api'
 import styles from '../../../../login/login.module.css'
@@ -16,22 +16,55 @@ const TYPE_LABELS: Record<string, string> = {
   OTHER: 'Övrigt',
 }
 
-function localDatetimeDefault(offsetHours = 1) {
-  const d = new Date(Date.now() + offsetHours * 60 * 60 * 1000)
+/** Round up to nearest 10 minutes, return datetime-local string (UTC-based, matches input format) */
+function roundedDatetimeStr(offsetMs: number): string {
+  const tenMin = 10 * 60 * 1000
+  const d = new Date(Math.ceil((Date.now() + offsetMs) / tenMin) * tenMin)
   d.setSeconds(0, 0)
+  return d.toISOString().slice(0, 16)
+}
+
+function addMins(datetimeStr: string, mins: number): string {
+  const d = new Date(datetimeStr)
+  d.setMinutes(d.getMinutes() + mins)
   return d.toISOString().slice(0, 16)
 }
 
 export default function NewAppointmentPage({ params }: { params: { groupId: string } }) {
   const router = useRouter()
+
+  const startDefault = roundedDatetimeStr(60 * 60 * 1000)   // 1 hour from now
+  const endDefault = addMins(startDefault, 30)               // 30 min after start
+
   const [type, setType] = useState('HEALTHCARE')
   const [title, setTitle] = useState('')
   const [location, setLocation] = useState('')
-  const [startTime, setStartTime] = useState(localDatetimeDefault(1))
-  const [endTime, setEndTime] = useState(localDatetimeDefault(2))
+  const [startTime, setStartTime] = useState(startDefault)
+  const [endTime, setEndTime] = useState(endDefault)
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  // Pre-fill from URL search params (e.g. when arriving from journal appointment prompt)
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    if (p.get('title')) setTitle(p.get('title')!)
+    if (p.get('type') && TYPES.includes(p.get('type') as (typeof TYPES)[number])) {
+      setType(p.get('type')!)
+    }
+    if (p.get('startTime')) {
+      const s = p.get('startTime')!
+      setStartTime(s)
+      setEndTime(p.get('endTime') ?? addMins(s, 30))
+    }
+    if (p.get('location')) setLocation(p.get('location')!)
+    if (p.get('notes')) setNotes(p.get('notes')!)
+  }, [])
+
+  function handleStartChange(val: string) {
+    setStartTime(val)
+    setEndTime(addMins(val, 30))
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -47,7 +80,7 @@ export default function NewAppointmentPage({ params }: { params: { groupId: stri
         endTime: endTime ? new Date(endTime).toISOString() : null,
         notes: notes || null,
       })
-      router.push(`/groups/${params.groupId}/calendar`)
+      router.push(`/groups/${params.groupId}/calendar` as never)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Något gick fel.')
       setSaving(false)
@@ -99,8 +132,9 @@ export default function NewAppointmentPage({ params }: { params: { groupId: stri
           <input
             type="datetime-local"
             value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
+            onChange={(e) => handleStartChange(e.target.value)}
             className={styles.input}
+            step="600"
             required
           />
         </label>
@@ -112,6 +146,7 @@ export default function NewAppointmentPage({ params }: { params: { groupId: stri
             value={endTime}
             onChange={(e) => setEndTime(e.target.value)}
             className={styles.input}
+            step="600"
           />
         </label>
 
