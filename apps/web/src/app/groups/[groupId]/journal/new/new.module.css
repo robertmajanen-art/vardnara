@@ -111,8 +111,8 @@
 
 /* Appointment prompt shown after journal save */
 .appointmentPrompt {
-  background: #e7f1ff;
-  border: 1px solid #b6d4fe;
+  background: #f0e8ff;
+  border: 1px solid #d4a5d8;
   border-radius: 10px;
   padding: 1.25rem 1.5rem;
   display: flex;
@@ -122,7 +122,7 @@
 
 .promptText {
   font-size: 1rem;
-  color: #084298;
+  color: #5b2d8e;
   margin: 0;
   line-height: 1.4;
 }

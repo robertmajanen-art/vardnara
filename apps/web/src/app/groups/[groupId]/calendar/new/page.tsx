@@ -55,12 +55,12 @@ function DateTimePicker({ value, onChange, inputClass }: {
 
 const TYPES = ['HEALTHCARE', 'SCHOOL', 'SOCIAL', 'THERAPY', 'FAMILY', 'OTHER'] as const
 const TYPE_LABELS: Record<string, string> = {
-  HEALTHCARE: 'Sjukvård',
-  SCHOOL: 'Skola',
-  SOCIAL: 'Socialt',
-  THERAPY: 'Terapi',
-  FAMILY: 'Familj',
-  OTHER: 'Övrigt',
+  HEALTHCARE: '🩺 Sjukvård',
+  SCHOOL: '🎒 Skola',
+  SOCIAL: '🤝 Socialt',
+  THERAPY: '🌿 Terapi',
+  FAMILY: '💜 Familj',
+  OTHER: '✨ Övrigt',
 }
 
 /** Format a Date as a local datetime-local string (YYYY-MM-DDTHH:MM) */

@@ -34,7 +34,7 @@ export default function LoginPage() {
   return (
     <div className={styles.container}>
       <div className={styles.card}>
-        <h1 className={styles.title}>Vardnära</h1>
+        <h1 className={styles.title}>💜 VårdNära</h1>
         <p className={styles.subtitle}>Logga in på ditt konto</p>
         <form onSubmit={handleSubmit} className={styles.form}>
           <label className={styles.label}>

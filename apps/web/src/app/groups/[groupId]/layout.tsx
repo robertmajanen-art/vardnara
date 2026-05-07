@@ -6,13 +6,13 @@ import { clearTokens } from '../../../lib/api'
 import styles from './group.module.css'
 
 const NAV_ITEMS = [
-  { href: 'calendar', labelKey: 'nav.calendar' },
-  { href: 'tasks', labelKey: 'nav.tasks' },
-  { href: 'feed', labelKey: 'nav.feed' },
-  { href: 'journal', labelKey: 'nav.journal' },
-  { href: 'expenses', labelKey: 'nav.expenses' },
-  { href: 'documents', labelKey: 'nav.documents' },
-  { href: 'settings', labelKey: 'nav.settings' },
+  { href: 'calendar',  labelKey: 'nav.calendar',  icon: '🌸' },
+  { href: 'tasks',     labelKey: 'nav.tasks',     icon: '✅' },
+  { href: 'feed',      labelKey: 'nav.feed',      icon: '💬' },
+  { href: 'journal',   labelKey: 'nav.journal',   icon: '📖' },
+  { href: 'expenses',  labelKey: 'nav.expenses',  icon: '🌷' },
+  { href: 'documents', labelKey: 'nav.documents', icon: '📄' },
+  { href: 'settings',  labelKey: 'nav.settings',  icon: '⚙️' },
 ]
 
 export default function GroupLayout({
@@ -51,7 +51,7 @@ export default function GroupLayout({
     <div className={styles.shell}>
       {/* Mobile top bar */}
       <div className={styles.mobileBar}>
-        <a href="/groups" className={styles.mobileLogo}>Vardnära</a>
+        <a href="/groups" className={styles.mobileLogo}>💜 VårdNära</a>
         <button
           className={styles.hamburger}
           onClick={() => setMenuOpen((o) => !o)}
@@ -75,7 +75,7 @@ export default function GroupLayout({
                     className={styles.drawerItem}
                     onClick={() => setMenuOpen(false)}
                   >
-                    {t(item.labelKey)}
+                    <span className={styles.navIcon}>{item.icon}</span>{t(item.labelKey)}
                   </a>
                 </li>
               ))}
@@ -90,7 +90,7 @@ export default function GroupLayout({
 
       {/* Desktop sidebar */}
       <nav className={styles.sidebar}>
-        <a href="/groups" className={styles.logo}>Vardnära</a>
+        <a href="/groups" className={styles.logo}>💜 VårdNära</a>
         <ul className={styles.navList}>
           {NAV_ITEMS.map((item) => (
             <li key={item.href}>
@@ -98,7 +98,7 @@ export default function GroupLayout({
                 href={`/groups/${params.groupId}/${item.href}`}
                 className={styles.navItem}
               >
-                {t(item.labelKey)}
+                <span className={styles.navIcon}>{item.icon}</span>{t(item.labelKey)}
               </a>
             </li>
           ))}

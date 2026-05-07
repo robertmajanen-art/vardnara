@@ -3,12 +3,12 @@
 import styles from '../tasks/tasks.module.css'
 
 const CAT_LABELS: Record<string, string> = {
-  MEDICAL: 'Medicinsk',
-  LEGAL: 'Juridisk',
-  SCHOOL: 'Skola',
-  FINANCIAL: 'Ekonomi',
-  INSURANCE: 'Försäkring',
-  OTHER: 'Övrigt',
+  MEDICAL: '🩺 Medicinsk',
+  LEGAL: '⚖️ Juridisk',
+  SCHOOL: '🎒 Skola',
+  FINANCIAL: '💜 Ekonomi',
+  INSURANCE: '🛡️ Försäkring',
+  OTHER: '✨ Övrigt',
 }
 
 export default function DocumentsPage({ params }: { params: { groupId: string } }) {

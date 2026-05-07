@@ -9,11 +9,11 @@ import pageStyles from './new.module.css'
 
 const ENTRY_TYPES = ['NOTE', 'OBSERVATION', 'INCIDENT', 'MOOD', 'HEALTH_UPDATE'] as const
 const ENTRY_TYPE_LABELS: Record<string, string> = {
-  NOTE: 'Anteckning',
-  OBSERVATION: 'Observation',
-  INCIDENT: 'Händelse',
-  MOOD: 'Mående',
-  HEALTH_UPDATE: 'Hälsouppdatering',
+  NOTE: '📝 Anteckning',
+  OBSERVATION: '👁️ Observation',
+  INCIDENT: '⚠️ Händelse',
+  MOOD: '🌸 Mående',
+  HEALTH_UPDATE: '💜 Hälsouppdatering',
 }
 
 type AppointmentHint = {

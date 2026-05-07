@@ -54,7 +54,7 @@
 
 .input:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+  box-shadow: 0 0 0 3px rgba(139, 94, 158, 0.18);
 }
 
 .error {

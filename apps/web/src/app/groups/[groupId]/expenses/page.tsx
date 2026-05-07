@@ -17,13 +17,13 @@ type Expense = {
 type Summary = { totals: Record<string, number>; grandTotal: number }
 
 const CAT_LABELS: Record<string, string> = {
-  MEDICATION: 'Medicin',
-  FOOD: 'Mat',
-  TRANSPORT: 'Transport',
-  EQUIPMENT: 'Hjälpmedel',
-  SERVICES: 'Tjänster',
-  INSURANCE: 'Försäkring',
-  OTHER: 'Övrigt',
+  MEDICATION: '💊 Medicin',
+  FOOD: '🍽️ Mat',
+  TRANSPORT: '🚗 Transport',
+  EQUIPMENT: '🦽 Hjälpmedel',
+  SERVICES: '🤲 Tjänster',
+  INSURANCE: '🛡️ Försäkring',
+  OTHER: '✨ Övrigt',
 }
 
 function formatSEK(ore: number) {

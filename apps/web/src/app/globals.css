@@ -6,12 +6,12 @@
 
 :root {
   --color-bg: #ffffff;
-  --color-surface: #f8f9fa;
-  --color-border: #dee2e6;
-  --color-text: #212529;
-  --color-text-muted: #6c757d;
-  --color-primary: #0d6efd;
-  --color-primary-hover: #0b5ed7;
+  --color-surface: #fdf5ff;
+  --color-border: #e8d0f0;
+  --color-text: #1e0e2e;
+  --color-text-muted: #8b7a9e;
+  --color-primary: #8b5e9e;
+  --color-primary-hover: #7a5290;
   --color-danger: #dc3545;
   --color-success: #198754;
   --color-warning: #ffc107;

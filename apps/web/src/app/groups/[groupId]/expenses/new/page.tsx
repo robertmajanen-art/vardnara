@@ -11,14 +11,14 @@ const CATEGORIES = [
 ] as const
 
 const CATEGORY_LABELS: Record<string, string> = {
-  FOOD: 'Mat & dryck',
-  TRANSPORT: 'Transport',
-  MEDICAL: 'Vård & hälsa',
-  HOUSING: 'Boende & hem',
-  CLOTHING: 'Kläder',
-  PERSONAL_CARE: 'Personlig hygien',
-  LEISURE: 'Fritid & nöje',
-  OTHER: 'Övrigt',
+  FOOD: '🍽️ Mat & dryck',
+  TRANSPORT: '🚗 Transport',
+  MEDICAL: '🩺 Vård & hälsa',
+  HOUSING: '🏠 Boende & hem',
+  CLOTHING: '👕 Kläder',
+  PERSONAL_CARE: '🌸 Personlig hygien',
+  LEISURE: '🌿 Fritid & nöje',
+  OTHER: '✨ Övrigt',
 }
 
 export default function NewExpensePage({ params }: { params: { groupId: string } }) {

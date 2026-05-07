@@ -17,11 +17,11 @@ type ParsedJournal = {
 
 const ENTRY_TYPES = ['NOTE', 'OBSERVATION', 'INCIDENT', 'MOOD', 'HEALTH_UPDATE']
 const ENTRY_TYPE_LABELS: Record<string, string> = {
-  NOTE: 'Anteckning',
-  OBSERVATION: 'Observation',
-  INCIDENT: 'Händelse',
-  MOOD: 'Mående',
-  HEALTH_UPDATE: 'Hälsouppdatering',
+  NOTE: '📝 Anteckning',
+  OBSERVATION: '👁️ Observation',
+  INCIDENT: '⚠️ Händelse',
+  MOOD: '🌸 Mående',
+  HEALTH_UPDATE: '💜 Hälsouppdatering',
 }
 
 type Phase = 'idle' | 'recording' | 'transcribing' | 'parsing' | 'preview' | 'saving' | 'error'

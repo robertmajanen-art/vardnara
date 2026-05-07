@@ -35,15 +35,15 @@
 }
 
 .item:hover {
-  background: #f8f9fa;
+  background: var(--color-surface);
 }
 
 .unread {
-  background: #f0f6ff;
+  background: #f5eeff;
 }
 
 .unread:hover {
-  background: #e8f0fe;
+  background: #ecddf8;
 }
 
 .itemDot {

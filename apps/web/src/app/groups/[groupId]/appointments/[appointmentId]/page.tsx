@@ -18,12 +18,12 @@ type Appointment = {
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  HEALTHCARE: 'Sjukvård',
-  SCHOOL: 'Skola',
-  SOCIAL: 'Socialt',
-  THERAPY: 'Terapi',
-  FAMILY: 'Familj',
-  OTHER: 'Övrigt',
+  HEALTHCARE: '🩺 Sjukvård',
+  SCHOOL: '🎒 Skola',
+  SOCIAL: '🤝 Socialt',
+  THERAPY: '🌿 Terapi',
+  FAMILY: '💜 Familj',
+  OTHER: '✨ Övrigt',
 }
 
 const fmt = new Intl.DateTimeFormat('sv-SE', { dateStyle: 'long', timeStyle: 'short' })

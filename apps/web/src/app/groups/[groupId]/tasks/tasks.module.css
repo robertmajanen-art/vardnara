@@ -84,7 +84,7 @@
 }
 
 .item:hover {
-  border-color: #adb5bd;
+  border-color: #c8aad8;
 }
 
 .overdue {
@@ -118,7 +118,7 @@
   font-size: 0.75rem;
 }
 
-.status_OPEN { background: #e7f1ff; color: var(--color-primary); }
+.status_OPEN { background: #f0e8ff; color: var(--color-primary); }
 .status_IN_PROGRESS { background: #fff3cd; color: #664d03; }
 .status_DONE { background: #d1e7dd; color: #0a3622; }
 .status_OVERDUE { background: #f8d7da; color: #58151c; }

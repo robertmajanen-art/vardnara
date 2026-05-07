@@ -15,13 +15,13 @@ type JournalEntry = {
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  NOTE: 'Anteckning',
-  OBSERVATION: 'Observation',
-  INCIDENT: 'Händelse',
-  MOOD: 'Mående',
-  HEALTH_UPDATE: 'Hälsouppdatering',
-  APPOINTMENT_OUTCOME: 'Besöksutfall',
-  ACTIVITY_CONFIRMED: 'Aktivitet bekräftad',
+  NOTE: '📝 Anteckning',
+  OBSERVATION: '👁️ Observation',
+  INCIDENT: '⚠️ Händelse',
+  MOOD: '🌸 Mående',
+  HEALTH_UPDATE: '💜 Hälsouppdatering',
+  APPOINTMENT_OUTCOME: '🩺 Besöksutfall',
+  ACTIVITY_CONFIRMED: '✅ Aktivitet bekräftad',
 }
 
 const TYPE_COLORS: Record<string, string> = {
