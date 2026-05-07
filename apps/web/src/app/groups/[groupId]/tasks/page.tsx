@@ -94,133 +94,165 @@ function placeLabels(idealCenterY: number[]): number[] {
   return pos
 }
 
-function todayKey(): string {
-  const d = new Date()
+function dateKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function ClockView({ tasks, groupId }: { tasks: Task[]; groupId: string }) {
-  const now = new Date()
-  const key = todayKey()
+function formatViewLabel(d: Date): string {
+  const today = new Date()
+  if (dateKey(d) === dateKey(today)) return 'Idag'
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1)
+  if (dateKey(d) === dateKey(tomorrow)) return 'Imorgon'
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1)
+  if (dateKey(d) === dateKey(yesterday)) return 'Igår'
+  const days = ['Sön', 'Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör']
+  const months = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec']
+  return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`
+}
 
-  const todayTasks = tasks
-    .filter((t) => {
-      if (!t.dueDate) return false
-      const d = new Date(t.dueDate)
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` === key
+function ClockView({ tasks, groupId }: { tasks: Task[]; groupId: string }) {
+  const [viewDate, setViewDate] = useState(() => new Date())
+  // null until client hydrates — prevents server (UTC) time from showing on the hands
+  const [now, setNow] = useState<Date | null>(null)
+
+  useEffect(() => {
+    setNow(new Date())
+    const id = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(id)
+  }, [])
+
+  const isToday = dateKey(viewDate) === dateKey(new Date())
+
+  function shiftDay(delta: number) {
+    setViewDate(prev => {
+      const next = new Date(prev)
+      next.setDate(next.getDate() + delta)
+      return next
     })
-    .map((t) => {
+  }
+
+  const viewKey = dateKey(viewDate)
+  const dayTasks = tasks
+    .filter(t => t.dueDate && dateKey(new Date(t.dueDate)) === viewKey)
+    .map(t => {
       const θ = taskAngle(t.dueDate!)
       const [px, py] = clockEdge(θ)
       return { task: t, θ, px, py }
     })
 
   // Both sides sorted by py ascending → same card order top-to-bottom → lines never cross
-  const right = todayTasks.filter(({ θ }) => Math.sin(θ) >= 0).sort((a, b) => a.py - b.py)
-  const left  = todayTasks.filter(({ θ }) => Math.sin(θ) <  0).sort((a, b) => a.py - b.py)
+  const right = dayTasks.filter(({ θ }) => Math.sin(θ) >= 0).sort((a, b) => a.py - b.py)
+  const left  = dayTasks.filter(({ θ }) => Math.sin(θ) <  0).sort((a, b) => a.py - b.py)
 
   const rightTops = placeLabels(right.map(r => r.py))
   const leftTops  = placeLabels(left.map(l => l.py))
 
-  // Current time hand angles
-  const nowH = ((now.getHours() % 12 + now.getMinutes() / 60) / 12) * Math.PI * 2
-  const nowM = (now.getMinutes() / 60) * Math.PI * 2
+  // Clock hand angles — only computed when now is known (client-side local time)
+  const nowH = now ? ((now.getHours() % 12 + now.getMinutes() / 60) / 12) * Math.PI * 2 : null
+  const nowM = now ? (now.getMinutes() / 60) * Math.PI * 2 : null
+  const showHands = isToday && nowH !== null && nowM !== null
+
+  const effectiveNow = now ?? new Date()
 
   return (
-    <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} width="100%" overflow="visible" aria-label="Uppgifter idag">
+    <div>
+      <div className={styles.clockNav}>
+        <button className={styles.clockNavBtn} onClick={() => shiftDay(-1)}>←</button>
+        <span className={styles.clockNavLabel}>{formatViewLabel(viewDate)}</span>
+        <button className={styles.clockNavBtn} onClick={() => shiftDay(1)}>→</button>
+      </div>
 
-      {/* "Idag" label */}
-      <text x={CX} y={14} textAnchor="middle" fontSize={12} fontWeight={700}
-        fill="#8b5e9e" letterSpacing={1}>IDAG</text>
+      <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} width="100%" overflow="visible" aria-label="Uppgifter">
 
-      {/* Clock background */}
-      <circle cx={CX} cy={CY} r={R} fill="#2d1040" />
-      <circle cx={CX} cy={CY} r={R} fill="none" stroke="#8b5e9e" strokeWidth={2.5} />
+        {/* Clock background */}
+        <circle cx={CX} cy={CY} r={R} fill="#2d1040" />
+        <circle cx={CX} cy={CY} r={R} fill="none" stroke="#8b5e9e" strokeWidth={2.5} />
 
-      {/* Tick marks */}
-      {Array.from({ length: 12 }, (_, i) => {
-        const θ = (i / 12) * Math.PI * 2
-        return (
-          <line key={i}
-            x1={CX + (R - 10) * Math.sin(θ)} y1={CY - (R - 10) * Math.cos(θ)}
-            x2={CX + R * Math.sin(θ)}         y2={CY - R * Math.cos(θ)}
-            stroke="#8b5e9e" strokeWidth={1.5} />
-        )
-      })}
+        {/* Tick marks */}
+        {Array.from({ length: 12 }, (_, i) => {
+          const θ = (i / 12) * Math.PI * 2
+          return (
+            <line key={i}
+              x1={CX + (R - 10) * Math.sin(θ)} y1={CY - (R - 10) * Math.cos(θ)}
+              x2={CX + R * Math.sin(θ)}         y2={CY - R * Math.cos(θ)}
+              stroke="#8b5e9e" strokeWidth={1.5} />
+          )
+        })}
 
-      {/* Hour numbers */}
-      {Array.from({ length: 12 }, (_, i) => {
-        const h = i + 1
-        const θ = (h / 12) * Math.PI * 2
-        return (
-          <text key={h}
-            x={CX + 78 * Math.sin(θ)} y={CY - 78 * Math.cos(θ)}
-            textAnchor="middle" dominantBaseline="central"
-            fontSize={13} fill="#c8aad8" fontWeight={500}>
-            {h}
-          </text>
-        )
-      })}
+        {/* Hour numbers */}
+        {Array.from({ length: 12 }, (_, i) => {
+          const h = i + 1
+          const θ = (h / 12) * Math.PI * 2
+          return (
+            <text key={h}
+              x={CX + 78 * Math.sin(θ)} y={CY - 78 * Math.cos(θ)}
+              textAnchor="middle" dominantBaseline="central"
+              fontSize={13} fill="#c8aad8" fontWeight={500}>
+              {h}
+            </text>
+          )
+        })}
 
-      {/* Hour hand */}
-      <line x1={CX} y1={CY}
-        x2={CX + 58 * Math.sin(nowH)} y2={CY - 58 * Math.cos(nowH)}
-        stroke="#d4b8e0" strokeWidth={4} strokeLinecap="round" />
+        {/* Clock hands — only for today, only after client hydration (local time) */}
+        {showHands && (
+          <>
+            <line x1={CX} y1={CY}
+              x2={CX + 58 * Math.sin(nowH!)} y2={CY - 58 * Math.cos(nowH!)}
+              stroke="#d4b8e0" strokeWidth={4} strokeLinecap="round" />
+            <line x1={CX} y1={CY}
+              x2={CX + 82 * Math.sin(nowM!)} y2={CY - 82 * Math.cos(nowM!)}
+              stroke="#b07cc6" strokeWidth={2.5} strokeLinecap="round" />
+            <circle cx={CX} cy={CY} r={4} fill="#d4b8e0" />
+          </>
+        )}
 
-      {/* Minute hand */}
-      <line x1={CX} y1={CY}
-        x2={CX + 82 * Math.sin(nowM)} y2={CY - 82 * Math.cos(nowM)}
-        stroke="#b07cc6" strokeWidth={2.5} strokeLinecap="round" />
+        {/* Right-side task cards */}
+        {right.map(({ task, px, py }, i) => {
+          const cy2 = rightTops[i]
+          const mid = cy2 + CARD_H / 2
+          const fill = cardColor(task, effectiveNow)
+          const label = task.title.length > 14 ? task.title.slice(0, 13) + '…' : task.title
+          return (
+            <a key={task.id} href={`/groups/${groupId}/tasks/${task.id}`} style={{ cursor: 'pointer' }}>
+              <path d={`M ${px},${py} L ${RIGHT_X},${py} L ${RIGHT_X},${mid}`}
+                stroke={fill} strokeWidth={1.2} opacity={0.55} fill="none" />
+              <rect x={RIGHT_X} y={cy2} width={CARD_W} height={CARD_H} rx={6} fill={fill} />
+              <text x={RIGHT_X + CARD_W / 2} y={mid} textAnchor="middle" dominantBaseline="central"
+                fontSize={11} fill="white" fontWeight={600}>{label}</text>
+            </a>
+          )
+        })}
 
-      {/* Centre dot */}
-      <circle cx={CX} cy={CY} r={4} fill="#d4b8e0" />
+        {/* Left-side task cards */}
+        {left.map(({ task, px, py }, i) => {
+          const cy2 = leftTops[i]
+          const mid = cy2 + CARD_H / 2
+          const fill = cardColor(task, effectiveNow)
+          const label = task.title.length > 14 ? task.title.slice(0, 13) + '…' : task.title
+          return (
+            <a key={task.id} href={`/groups/${groupId}/tasks/${task.id}`} style={{ cursor: 'pointer' }}>
+              <path d={`M ${px},${py} L ${LEFT_X},${py} L ${LEFT_X},${mid}`}
+                stroke={fill} strokeWidth={1.2} opacity={0.55} fill="none" />
+              <rect x={LEFT_X - CARD_W} y={cy2} width={CARD_W} height={CARD_H} rx={6} fill={fill} />
+              <text x={LEFT_X - CARD_W / 2} y={mid} textAnchor="middle" dominantBaseline="central"
+                fontSize={11} fill="white" fontWeight={600}>{label}</text>
+            </a>
+          )
+        })}
 
-      {/* Right-side task cards */}
-      {right.map(({ task, px, py }, i) => {
-        const cy2 = rightTops[i]
-        const mid = cy2 + CARD_H / 2
-        const fill = cardColor(task, now)
-        const label = task.title.length > 14 ? task.title.slice(0, 13) + '…' : task.title
-        return (
-          <a key={task.id} href={`/groups/${groupId}/tasks/${task.id}`} style={{ cursor: 'pointer' }}>
-            <path d={`M ${px},${py} L ${RIGHT_X},${py} L ${RIGHT_X},${mid}`}
-              stroke={fill} strokeWidth={1.2} opacity={0.55} fill="none" />
-            <rect x={RIGHT_X} y={cy2} width={CARD_W} height={CARD_H} rx={6} fill={fill} />
-            <text x={RIGHT_X + CARD_W / 2} y={mid} textAnchor="middle" dominantBaseline="central"
-              fontSize={11} fill="white" fontWeight={600}>{label}</text>
-          </a>
-        )
-      })}
-
-      {/* Left-side task cards */}
-      {left.map(({ task, px, py }, i) => {
-        const cy2 = leftTops[i]
-        const mid = cy2 + CARD_H / 2
-        const fill = cardColor(task, now)
-        const label = task.title.length > 14 ? task.title.slice(0, 13) + '…' : task.title
-        return (
-          <a key={task.id} href={`/groups/${groupId}/tasks/${task.id}`} style={{ cursor: 'pointer' }}>
-            <path d={`M ${px},${py} L ${LEFT_X},${py} L ${LEFT_X},${mid}`}
-              stroke={fill} strokeWidth={1.2} opacity={0.55} fill="none" />
-            <rect x={LEFT_X - CARD_W} y={cy2} width={CARD_W} height={CARD_H} rx={6} fill={fill} />
-            <text x={LEFT_X - CARD_W / 2} y={mid} textAnchor="middle" dominantBaseline="central"
-              fontSize={11} fill="white" fontWeight={600}>{label}</text>
-          </a>
-        )
-      })}
-
-      {/* Legend */}
-      {[
-        { fill: '#198754', label: 'Utförd' },
-        { fill: '#d97706', label: 'Passerad' },
-        { fill: '#8b5e9e', label: 'Kommande' },
-      ].map(({ fill, label }, i) => (
-        <g key={label} transform={`translate(${10 + i * 105}, ${SVG_H - 14})`}>
-          <rect width={10} height={10} rx={2} fill={fill} y={-5} />
-          <text x={14} fontSize={10} fill="#8b7a9e" dominantBaseline="central">{label}</text>
-        </g>
-      ))}
-    </svg>
+        {/* Legend */}
+        {[
+          { fill: '#198754', label: 'Utförd' },
+          { fill: '#d97706', label: 'Passerad' },
+          { fill: '#8b5e9e', label: 'Kommande' },
+        ].map(({ fill, label }, i) => (
+          <g key={label} transform={`translate(${10 + i * 105}, ${SVG_H - 14})`}>
+            <rect width={10} height={10} rx={2} fill={fill} y={-5} />
+            <text x={14} fontSize={10} fill="#8b7a9e" dominantBaseline="central">{label}</text>
+          </g>
+        ))}
+      </svg>
+    </div>
   )
 }
 
