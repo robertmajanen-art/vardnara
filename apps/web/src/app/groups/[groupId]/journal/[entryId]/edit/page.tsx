@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '../../../../../../lib/api'
 import detailStyles from '../../../detail.module.css'
-import formStyles from '../../../../login/login.module.css'
+import formStyles from '../../../../../login/login.module.css'
 
 const ENTRY_TYPES = ['NOTE', 'OBSERVATION', 'INCIDENT', 'MOOD', 'HEALTH_UPDATE'] as const
 const ENTRY_TYPE_LABELS: Record<string, string> = {

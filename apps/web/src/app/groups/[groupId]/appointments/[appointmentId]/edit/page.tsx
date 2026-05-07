@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '../../../../../../lib/api'
 import detailStyles from '../../../detail.module.css'
-import formStyles from '../../../../login/login.module.css'
+import formStyles from '../../../../../login/login.module.css'
 
 const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
 const MINUTES = ['00', '10', '20', '30', '40', '50']
