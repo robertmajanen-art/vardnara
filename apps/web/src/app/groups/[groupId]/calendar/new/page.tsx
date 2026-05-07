@@ -6,6 +6,53 @@ import { api } from '../../../../../lib/api'
 import styles from '../../../../login/login.module.css'
 import pageStyles from './new.module.css'
 
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
+const MINUTES = ['00', '10', '20', '30', '40', '50']
+
+/** Split a local datetime string "YYYY-MM-DDTHH:MM" into parts */
+function splitDt(dt: string) {
+  const [date = '', time = '09:00'] = dt.split('T')
+  const [hour = '09', minute = '00'] = time.split(':')
+  return { date, hour, minute }
+}
+
+function DateTimePicker({ value, onChange, inputClass }: {
+  value: string
+  onChange: (v: string) => void
+  inputClass: string
+}) {
+  const { date, hour, minute } = splitDt(value)
+  const emit = (d: string, h: string, m: string) => onChange(`${d}T${h}:${m}`)
+  return (
+    <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap' }}>
+      <input
+        type="date"
+        value={date}
+        onChange={(e) => emit(e.target.value, hour, minute)}
+        className={inputClass}
+        style={{ flex: '1 1 140px', minWidth: 0 }}
+        required
+      />
+      <select
+        value={hour}
+        onChange={(e) => emit(date, e.target.value, minute)}
+        className={inputClass}
+        style={{ flex: '0 0 auto' }}
+      >
+        {HOURS.map((h) => <option key={h} value={h}>{h}</option>)}
+      </select>
+      <select
+        value={minute}
+        onChange={(e) => emit(date, hour, e.target.value)}
+        className={inputClass}
+        style={{ flex: '0 0 auto' }}
+      >
+        {MINUTES.map((m) => <option key={m} value={m}>{m}</option>)}
+      </select>
+    </div>
+  )
+}
+
 const TYPES = ['HEALTHCARE', 'SCHOOL', 'SOCIAL', 'THERAPY', 'FAMILY', 'OTHER'] as const
 const TYPE_LABELS: Record<string, string> = {
   HEALTHCARE: 'Sjukvård',
@@ -149,25 +196,12 @@ export default function NewAppointmentPage({ params }: { params: { groupId: stri
 
         <label className={styles.label}>
           Starttid
-          <input
-            type="datetime-local"
-            value={startTime}
-            onChange={(e) => handleStartChange(e.target.value)}
-            className={styles.input}
-            step="600"
-            required
-          />
+          <DateTimePicker value={startTime} onChange={handleStartChange} inputClass={styles.input} />
         </label>
 
         <label className={styles.label}>
           Sluttid (valfritt)
-          <input
-            type="datetime-local"
-            value={endTime}
-            onChange={(e) => handleEndChange(e.target.value)}
-            className={styles.input}
-            step="600"
-          />
+          <DateTimePicker value={endTime} onChange={handleEndChange} inputClass={styles.input} />
         </label>
 
         <label className={styles.label}>
