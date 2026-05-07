@@ -40,6 +40,12 @@ export default function JournalPage({ params }: { params: { groupId: string } })
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('')
 
+  async function handleDelete(entryId: string) {
+    if (!window.confirm('Ta bort dagboksposten permanent?')) return
+    await api.delete(`/api/groups/${params.groupId}/journal/${entryId}`)
+    setEntries(prev => prev.filter(e => e.id !== entryId))
+  }
+
   useEffect(() => {
     setLoading(true)
     const qs = filter ? `?entryType=${filter}` : ''
@@ -84,8 +90,9 @@ export default function JournalPage({ params }: { params: { groupId: string } })
       ) : (
         <ul className={styles.list}>
           {entries.map((e) => (
-            <a key={e.id} href={`/groups/${params.groupId}/journal/${e.id}`} className={styles.item} style={{ textDecoration: 'none', color: 'inherit' }}>
-              <div className={styles.itemMain}>
+            <li key={e.id} className={styles.item} style={{ display: 'flex', alignItems: 'center' }}>
+              <a href={`/groups/${params.groupId}/journal/${e.id}`} className={styles.itemMain}
+                style={{ textDecoration: 'none', color: 'inherit', display: 'block', flex: 1, minWidth: 0 }}>
                 <div className={styles.itemMeta}>
                   <span className={styles.statusBadge} style={{ background: TYPE_COLORS[e.entryType] ?? '#f0f0f0', color: '#333' }}>
                     {TYPE_LABELS[e.entryType] ?? e.entryType}
@@ -108,8 +115,13 @@ export default function JournalPage({ params }: { params: { groupId: string } })
                     ))}
                   </div>
                 )}
+              </a>
+              <div className={styles.itemActions}>
+                <a href={`/groups/${params.groupId}/journal/${e.id}/edit`} className={styles.iconBtn} title="Redigera">✏️</a>
+                <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
+                  onClick={() => handleDelete(e.id)} title="Ta bort">🗑</button>
               </div>
-            </a>
+            </li>
           ))}
         </ul>
       )}

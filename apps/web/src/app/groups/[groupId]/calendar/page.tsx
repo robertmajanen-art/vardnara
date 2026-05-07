@@ -43,6 +43,12 @@ export default function CalendarPage({ params }: { params: { groupId: string } }
   const [loading, setLoading] = useState(true)
   const todayRef = useRef<HTMLElement>(null)
 
+  async function handleDelete(aptId: string) {
+    if (!window.confirm('Ta bort besöket permanent?')) return
+    await api.delete(`/api/groups/${params.groupId}/appointments/${aptId}`)
+    setAppointments(prev => prev.filter(a => a.id !== aptId))
+  }
+
   const { fromStr, toStr, todayStr } = useMemo(() => {
     const now = new Date()
     const f = new Date(now); f.setDate(f.getDate() - 30); f.setHours(0, 0, 0, 0)
@@ -114,17 +120,26 @@ export default function CalendarPage({ params }: { params: { groupId: string } }
                     const timeStr = fmtTime.format(start) + (end ? `–${fmtTime.format(end)}` : '')
 
                     return (
-                      <li key={apt.id}>
+                      <li key={apt.id} style={{ display: 'flex', alignItems: 'stretch', gap: '0.5rem' }}>
                         <a
                           href={`/groups/${params.groupId}/appointments/${apt.id}`}
                           className={styles.aptCard}
-                          style={{ borderLeftColor: color }}
+                          style={{ borderLeftColor: color, flex: 1 }}
                         >
                           <div className={styles.aptTime} style={{ color }}>{timeStr}</div>
                           <div className={styles.aptTitle}>{apt.title}</div>
                           {apt.location && <div className={styles.aptMeta}>📍 {apt.location}</div>}
                           {apt.notes && <div className={styles.aptNotes}>{apt.notes}</div>}
                         </a>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flexShrink: 0 }}>
+                          <a href={`/groups/${params.groupId}/appointments/${apt.id}/edit`}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '2rem', height: '2rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text-muted)', fontSize: '0.8125rem', textDecoration: 'none' }}
+                            title="Redigera">✏️</a>
+                          <button
+                            onClick={() => handleDelete(apt.id)}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '2rem', height: '2rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text-muted)', fontSize: '0.8125rem', cursor: 'pointer' }}
+                            title="Ta bort">🗑</button>
+                        </div>
                       </li>
                     )
                   })}

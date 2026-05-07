@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { api } from '../../../../../lib/api'
 import styles from '../../detail.module.css'
 
@@ -18,23 +19,17 @@ type Appointment = {
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  HEALTHCARE: '🩺 Sjukvård',
-  SCHOOL: '🎒 Skola',
-  SOCIAL: '🤝 Socialt',
-  THERAPY: '🌿 Terapi',
-  FAMILY: '💜 Familj',
-  OTHER: '✨ Övrigt',
+  HEALTHCARE: '🩺 Sjukvård', SCHOOL: '🎒 Skola', SOCIAL: '🤝 Socialt',
+  THERAPY: '🌿 Terapi', FAMILY: '💜 Familj', OTHER: '✨ Övrigt',
 }
 
 const fmt = new Intl.DateTimeFormat('sv-SE', { dateStyle: 'long', timeStyle: 'short' })
 
-export default function AppointmentDetailPage({
-  params,
-}: {
-  params: { groupId: string; appointmentId: string }
-}) {
+export default function AppointmentDetailPage({ params }: { params: { groupId: string; appointmentId: string } }) {
+  const router = useRouter()
   const [apt, setApt] = useState<Appointment | null>(null)
   const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -45,22 +40,30 @@ export default function AppointmentDetailPage({
       .finally(() => setLoading(false))
   }, [params.groupId, params.appointmentId])
 
+  async function handleDelete() {
+    if (!window.confirm('Ta bort besöket permanent?')) return
+    setDeleting(true)
+    try {
+      await api.delete(`/api/groups/${params.groupId}/appointments/${params.appointmentId}`)
+      router.push(`/groups/${params.groupId}/calendar` as never)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Något gick fel.')
+      setDeleting(false)
+    }
+  }
+
   if (loading) return <div className={styles.loading}>Laddar...</div>
   if (!apt) return <div className={styles.loading}>{error || 'Besök hittades inte.'}</div>
 
   const acceptedLabel =
-    apt.assigneeAccepted === true
-      ? 'Accepterat'
-      : apt.assigneeAccepted === false
-        ? 'Avböjt'
-        : 'Väntar på svar'
+    apt.assigneeAccepted === true ? 'Accepterat'
+    : apt.assigneeAccepted === false ? 'Avböjt'
+    : 'Väntar på svar'
 
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <a href={`/groups/${params.groupId}/calendar`} className={styles.back}>
-          ← Tillbaka
-        </a>
+        <a href={`/groups/${params.groupId}/calendar`} className={styles.back}>← Tillbaka</a>
         <h1>{apt.title}</h1>
       </div>
 
@@ -118,6 +121,17 @@ export default function AppointmentDetailPage({
           <span className={styles.fieldLabel}>Skapad av</span>
           <span className={styles.fieldValue}>{apt.createdBy.email}</span>
         </div>
+
+        <div className={styles.actions}>
+          <a href={`/groups/${params.groupId}/appointments/${params.appointmentId}/edit`} className={styles.btnSecondary}>
+            ✏️ Redigera
+          </a>
+          <button className={styles.btnDanger} onClick={handleDelete} disabled={deleting}>
+            {deleting ? 'Tar bort...' : '🗑 Ta bort'}
+          </button>
+        </div>
+
+        {error && <p className={styles.error}>{error}</p>}
       </div>
     </div>
   )

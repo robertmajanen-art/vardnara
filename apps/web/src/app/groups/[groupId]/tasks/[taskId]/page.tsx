@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { api } from '../../../../../lib/api'
 import styles from '../../detail.module.css'
 
@@ -10,34 +11,40 @@ type Task = {
   description?: string | null
   status: string
   dueDate?: string | null
+  recurrence?: string
+  recurrenceCron?: string | null
   assignee?: { id: string; email: string } | null
   createdBy: { id: string; email: string }
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  OPEN: 'Öppen',
-  IN_PROGRESS: 'Pågående',
-  DONE: 'Klar',
-  OVERDUE: 'Försenad',
+const DAY_MAP: Record<number, string> = {
+  0: 'Sön', 1: 'Mån', 2: 'Tis', 3: 'Ons', 4: 'Tor', 5: 'Fre', 6: 'Lör',
 }
 
-const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
-  OPEN: { bg: '#e7f1ff', fg: '#0d6efd' },
-  IN_PROGRESS: { bg: '#fff3cd', fg: '#856404' },
-  DONE: { bg: '#d1e7dd', fg: '#0a3622' },
-  OVERDUE: { bg: '#f8d7da', fg: '#58151c' },
+function formatRecurrence(task: Task): string | null {
+  if (!task.recurrence || task.recurrence === 'NONE') return null
+  const cron = task.recurrenceCron ?? ''
+  const parts = cron.split(' ')
+  const mm = parts[0] ?? '00'
+  const HH = parts[1] ?? '00'
+  const timeStr = ` kl ${HH.padStart(2, '0')}:${mm.padStart(2, '0')}`
+  if (task.recurrence === 'DAILY') return `🔄 Dagligen${timeStr}`
+  if (task.recurrence === 'WEEKLY') {
+    const days = (parts[4] ?? '').split(',').map(d => DAY_MAP[Number(d)] ?? d).join(', ')
+    return `🔄 Veckovis: ${days}${timeStr}`
+  }
+  if (task.recurrence === 'MONTHLY') return `🔄 Månadsvis dag ${parts[2]}${timeStr}`
+  return `🔄 ${task.recurrence}`
 }
 
-const fmtDate = new Intl.DateTimeFormat('sv-SE', { dateStyle: 'long' })
+const fmtDate = new Intl.DateTimeFormat('sv-SE', { dateStyle: 'long', timeStyle: 'short' })
 
-export default function TaskDetailPage({
-  params,
-}: {
-  params: { groupId: string; taskId: string }
-}) {
+export default function TaskDetailPage({ params }: { params: { groupId: string; taskId: string } }) {
+  const router = useRouter()
   const [task, setTask] = useState<Task | null>(null)
   const [loading, setLoading] = useState(true)
   const [completing, setCompleting] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -52,7 +59,7 @@ export default function TaskDetailPage({
     setCompleting(true)
     try {
       await api.patch(`/api/groups/${params.groupId}/tasks/${params.taskId}/complete`, {})
-      setTask((t) => (t ? { ...t, status: 'DONE' } : t))
+      setTask(t => (t ? { ...t, status: 'DONE' } : t))
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Något gick fel.')
     } finally {
@@ -60,17 +67,28 @@ export default function TaskDetailPage({
     }
   }
 
+  async function handleDelete() {
+    if (!window.confirm('Ta bort uppgiften permanent?')) return
+    setDeleting(true)
+    try {
+      await api.delete(`/api/groups/${params.groupId}/tasks/${params.taskId}`)
+      router.push(`/groups/${params.groupId}/tasks` as never)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Något gick fel.')
+      setDeleting(false)
+    }
+  }
+
   if (loading) return <div className={styles.loading}>Laddar...</div>
   if (!task) return <div className={styles.loading}>{error || 'Uppgift hittades inte.'}</div>
 
-  const colors = STATUS_COLORS[task.status] ?? { bg: '#f0f0f0', fg: '#333' }
+  const active = task.status !== 'DONE'
+  const rec = formatRecurrence(task)
 
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <a href={`/groups/${params.groupId}/tasks`} className={styles.back}>
-          ← Tillbaka
-        </a>
+        <a href={`/groups/${params.groupId}/tasks`} className={styles.back}>← Tillbaka</a>
         <h1>{task.title}</h1>
       </div>
 
@@ -78,11 +96,21 @@ export default function TaskDetailPage({
         <div className={styles.field}>
           <span className={styles.fieldLabel}>Status</span>
           <span>
-            <span className={styles.badge} style={{ background: colors.bg, color: colors.fg }}>
-              {STATUS_LABELS[task.status] ?? task.status}
+            <span className={styles.badge}
+              style={active
+                ? { background: '#f0e8ff', color: '#8b5e9e' }
+                : { background: '#d1e7dd', color: '#0a3622' }}>
+              {active ? 'Aktiv' : 'Inaktiv'}
             </span>
           </span>
         </div>
+
+        {rec && (
+          <div className={styles.field}>
+            <span className={styles.fieldLabel}>Återkommande</span>
+            <span className={styles.fieldValue}>{rec}</span>
+          </div>
+        )}
 
         {task.description && (
           <div className={styles.field}>
@@ -93,7 +121,9 @@ export default function TaskDetailPage({
 
         {task.dueDate && (
           <div className={styles.field}>
-            <span className={styles.fieldLabel}>Förfallodatum</span>
+            <span className={styles.fieldLabel}>
+              {task.recurrence && task.recurrence !== 'NONE' ? 'Starttid' : 'Förfallotid'}
+            </span>
             <span className={styles.fieldValue}>{fmtDate.format(new Date(task.dueDate))}</span>
           </div>
         )}
@@ -112,13 +142,19 @@ export default function TaskDetailPage({
           <span className={styles.fieldValue}>{task.createdBy.email}</span>
         </div>
 
-        {task.status !== 'DONE' && (
-          <div className={styles.actions}>
+        <div className={styles.actions}>
+          {active && (
             <button className={styles.btnPrimary} onClick={handleComplete} disabled={completing}>
               {completing ? 'Markerar...' : '✓ Markera som klar'}
             </button>
-          </div>
-        )}
+          )}
+          <a href={`/groups/${params.groupId}/tasks/${params.taskId}/edit`} className={styles.btnSecondary}>
+            ✏️ Redigera
+          </a>
+          <button className={styles.btnDanger} onClick={handleDelete} disabled={deleting}>
+            {deleting ? 'Tar bort...' : '🗑 Ta bort'}
+          </button>
+        </div>
 
         {error && <p className={styles.error}>{error}</p>}
       </div>
