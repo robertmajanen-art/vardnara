@@ -96,6 +96,7 @@ export type Task = {
   assigneeId?: string | null
   assignee?: { id: string; email: string } | null
   recurrence: string
+  recurrenceCron?: string | null
   completedAt?: string | null
   completionNote?: string | null
   createdAt: string

@@ -1,6 +1,33 @@
 .page {
   padding: 1.5rem 2rem;
-  max-width: 800px;
+}
+
+/* ── Two-column layout: list + clock ── */
+.content {
+  display: flex;
+  align-items: flex-start;
+  gap: 2rem;
+}
+
+.listSection {
+  flex: 1;
+  min-width: 0;
+}
+
+.clockSection {
+  flex: 0 0 500px;
+  max-width: 500px;
+}
+
+@media (max-width: 900px) {
+  .content {
+    flex-direction: column;
+  }
+  .clockSection {
+    flex: 0 0 auto;
+    width: 100%;
+    order: -1;
+  }
 }
 
 .header {
@@ -142,6 +169,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.recurrence {
+  font-size: 0.75rem;
+  color: var(--color-primary);
+  margin-top: 0.125rem;
 }
 
 .completeBtn {
