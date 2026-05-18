@@ -14,13 +14,16 @@ const WEEK_DAYS = [
   { label: 'Tor', cron: 4 }, { label: 'Fre', cron: 5 }, { label: 'Lör', cron: 6 }, { label: 'Sön', cron: 0 },
 ]
 
-type RecType = 'NONE' | 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY'
+type RecType = 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY'
 
-function buildRecCron(type: RecType, days: number[], monthDay: number, h: string, m: string): string {
-  if (type === 'DAILY')    return `${m} ${h} * * *`
-  if (type === 'WEEKLY')   return `${m} ${h} * * ${[...days].sort().join(',')}`
-  if (type === 'BIWEEKLY') return `BIWEEKLY ${m} ${h} * * ${[...days].sort().join(',') || '1'}`
-  if (type === 'MONTHLY')  return `${m} ${h} ${monthDay} * *`
+function buildRecCron(type: RecType, days: number[], monthDay: number, h: string, m: string, weeklyInterval: number): string {
+  if (type === 'DAILY')   return `${m} ${h} * * *`
+  if (type === 'WEEKLY') {
+    const dayCron = [...days].sort().join(',')
+    if (weeklyInterval > 1) return `WEEKLY_${weeklyInterval} ${m} ${h} * * ${dayCron}`
+    return `${m} ${h} * * ${dayCron}`
+  }
+  if (type === 'MONTHLY') return `${m} ${h} ${monthDay} * *`
   return ''
 }
 
@@ -115,6 +118,7 @@ export default function NewAppointmentPage({ params }: { params: { groupId: stri
   // Recurrence
   const [recType, setRecType] = useState<RecType>('NONE')
   const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set())
+  const [weeklyInterval, setWeeklyInterval] = useState(1)
   const [monthDay, setMonthDay] = useState(1)
 
   const [saving, setSaving] = useState(false)
@@ -153,7 +157,7 @@ export default function NewAppointmentPage({ params }: { params: { groupId: stri
     e.preventDefault()
     setError('')
     if (endTime && endTime <= startTime) { setError('Sluttiden måste vara efter starttiden.'); return }
-    if ((recType === 'WEEKLY' || recType === 'BIWEEKLY') && selectedDays.size === 0) {
+    if (recType === 'WEEKLY' && selectedDays.size === 0) {
       setError('Välj minst en dag för veckovis återkommande.')
       return
     }
@@ -161,9 +165,9 @@ export default function NewAppointmentPage({ params }: { params: { groupId: stri
     try {
       const { hour, minute } = splitDt(startTime)
       const cron = recType !== 'NONE'
-        ? buildRecCron(recType, [...selectedDays], monthDay, hour, minute)
+        ? buildRecCron(recType, [...selectedDays], monthDay, hour, minute, weeklyInterval)
         : undefined
-      const recurrence = recType === 'BIWEEKLY' ? 'CUSTOM' : recType
+      const recurrence = (recType === 'WEEKLY' && weeklyInterval > 1) ? 'CUSTOM' : recType
 
       await api.post(`/api/groups/${params.groupId}/appointments`, {
         type,
@@ -248,7 +252,7 @@ export default function NewAppointmentPage({ params }: { params: { groupId: stri
         <div className={pageStyles.section}>
           <div className={pageStyles.sectionTitle}>Återkommande mönster</div>
           <div className={pageStyles.radioGroup}>
-            {(['NONE', 'DAILY', 'WEEKLY', 'BIWEEKLY', 'MONTHLY'] as const).map((rt) => (
+            {(['NONE', 'DAILY', 'WEEKLY', 'MONTHLY'] as const).map((rt) => (
               <label key={rt} className={pageStyles.radioRow}>
                 <input
                   type="radio"
@@ -258,20 +262,25 @@ export default function NewAppointmentPage({ params }: { params: { groupId: stri
                   onChange={() => setRecType(rt)}
                 />
                 <span className={pageStyles.radioLabel}>
-                  {rt === 'NONE' ? 'Aldrig'
-                    : rt === 'DAILY' ? 'Dagligen'
-                    : rt === 'WEEKLY' ? 'Varje vecka'
-                    : rt === 'BIWEEKLY' ? 'Varannan vecka'
-                    : 'Månadsvis'}
+                  {rt === 'NONE' ? 'Aldrig' : rt === 'DAILY' ? 'Dagligen' : rt === 'WEEKLY' ? 'Veckovis' : 'Månadsvis'}
                 </span>
-                {recType === rt && (rt === 'WEEKLY' || rt === 'BIWEEKLY') && (
-                  <div className={pageStyles.dayGrid}>
-                    {WEEK_DAYS.map(({ label, cron }) => (
-                      <button key={cron} type="button"
-                        className={`${pageStyles.dayBtn} ${selectedDays.has(cron) ? pageStyles.dayBtnActive : ''}`}
-                        onClick={() => toggleDay(cron)}>{label}</button>
-                    ))}
-                  </div>
+                {recType === rt && rt === 'WEEKLY' && (
+                  <>
+                    <div className={pageStyles.inlineDetail}>
+                      Var
+                      <input type="number" min={1} max={52} value={weeklyInterval}
+                        onChange={e => setWeeklyInterval(Math.max(1, Number(e.target.value)))}
+                        className={pageStyles.numInput} />
+                      vecka(r) på:
+                    </div>
+                    <div className={pageStyles.dayGrid}>
+                      {WEEK_DAYS.map(({ label, cron }) => (
+                        <button key={cron} type="button"
+                          className={`${pageStyles.dayBtn} ${selectedDays.has(cron) ? pageStyles.dayBtnActive : ''}`}
+                          onClick={() => toggleDay(cron)}>{label}</button>
+                      ))}
+                    </div>
+                  </>
                 )}
                 {recType === rt && rt === 'MONTHLY' && (
                   <div className={pageStyles.inlineDetail}>

@@ -57,8 +57,18 @@ function projectAppointments(appointments: Appointment[], from: Date, to: Date):
       : null
 
     const cron = apt.recurrenceCron ?? ''
-    const isActuallyBiweekly = rec === 'CUSTOM' && cron.startsWith('BIWEEKLY ')
-    const actualCron = isActuallyBiweekly ? cron.slice('BIWEEKLY '.length) : cron
+
+    // Parse weekly interval prefix (BIWEEKLY or WEEKLY_N)
+    let weeklyInterval = 1
+    let actualCron = cron
+    if (cron.startsWith('BIWEEKLY ')) {
+      weeklyInterval = 2; actualCron = cron.slice('BIWEEKLY '.length)
+    } else {
+      const wm = cron.match(/^WEEKLY_(\d+) (.+)$/)
+      if (wm) { weeklyInterval = Number(wm[1]); actualCron = wm[2] }
+    }
+    const isIntervalWeekly = rec === 'CUSTOM' && weeklyInterval > 1
+
     const parts = actualCron.split(' ')
     const cronMm = Number(parts[0] ?? 0)
     const cronHH = Number(parts[1] ?? 0)
@@ -78,13 +88,13 @@ function projectAppointments(appointments: Appointment[], from: Date, to: Date):
         const dayPart = parts[4] ?? '*'
         if (dayPart === '*') shouldInclude = true
         else shouldInclude = dayPart.split(',').map(Number).includes(cursor.getDay())
-      } else if (isActuallyBiweekly) {
+      } else if (isIntervalWeekly) {
         const dayPart = parts[4] ?? '*'
         const days = dayPart !== '*' ? dayPart.split(',').map(Number) : [0, 1, 2, 3, 4, 5, 6]
         if (days.includes(cursor.getDay())) {
           const msPerWeek = 7 * 24 * 60 * 60 * 1000
           const weekDiff = Math.round((cursor.getTime() - anchorDay.getTime()) / msPerWeek)
-          shouldInclude = weekDiff % 2 === 0
+          shouldInclude = weekDiff % weeklyInterval === 0
         }
       } else if (rec === 'MONTHLY') {
         const dayOfMonth = parts[2] && parts[2] !== '*' ? Number(parts[2]) : startDate.getDate()

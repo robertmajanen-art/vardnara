@@ -13,7 +13,7 @@ const WEEK_DAYS = [
   { label: 'Tor', cron: 4 }, { label: 'Fre', cron: 5 }, { label: 'Lör', cron: 6 }, { label: 'Sön', cron: 0 },
 ]
 
-type RecType = 'NONE' | 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY'
+type RecType = 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY'
 
 type ExistingTask = {
   title: string
@@ -23,11 +23,14 @@ type ExistingTask = {
   recurrenceCron?: string | null
 }
 
-function buildCron(type: RecType, h: string, m: string, days: number[], monthDay: number): string {
-  if (type === 'DAILY')    return `${m} ${h} * * *`
-  if (type === 'WEEKLY')   return `${m} ${h} * * ${[...days].sort().join(',')}`
-  if (type === 'BIWEEKLY') return `BIWEEKLY ${m} ${h} * * ${[...days].sort().join(',') || '1'}`
-  if (type === 'MONTHLY')  return `${m} ${h} ${monthDay} * *`
+function buildCron(type: RecType, h: string, m: string, days: number[], monthDay: number, weeklyInterval: number): string {
+  if (type === 'DAILY')   return `${m} ${h} * * *`
+  if (type === 'WEEKLY') {
+    const dayCron = [...days].sort().join(',')
+    if (weeklyInterval > 1) return `WEEKLY_${weeklyInterval} ${m} ${h} * * ${dayCron}`
+    return `${m} ${h} * * ${dayCron}`
+  }
+  if (type === 'MONTHLY') return `${m} ${h} ${monthDay} * *`
   return ''
 }
 
@@ -36,14 +39,23 @@ function dateTimeISO(date: string, h: string, m: string): string {
   return new Date(y, mo - 1, d, Number(h), Number(m)).toISOString()
 }
 
-function parseCron(cron: string): { mm: string; HH: string; monthDay: number; weekDays: Set<number> } {
-  const actualCron = cron.startsWith('BIWEEKLY ') ? cron.slice('BIWEEKLY '.length) : cron
+function parseCron(cron: string): { mm: string; HH: string; monthDay: number; weekDays: Set<number>; weeklyInterval: number } {
+  let actualCron = cron
+  let weeklyInterval = 1
+  if (cron.startsWith('BIWEEKLY ')) {
+    actualCron = cron.slice('BIWEEKLY '.length)
+    weeklyInterval = 2
+  } else {
+    const m = cron.match(/^WEEKLY_(\d+) (.+)$/)
+    if (m) { weeklyInterval = Number(m[1]); actualCron = m[2] }
+  }
   const p = actualCron.split(' ')
   return {
     mm: p[0] ?? '00',
     HH: p[1] ?? '09',
     monthDay: p[2] && p[2] !== '*' ? Number(p[2]) : 1,
     weekDays: p[4] && p[4] !== '*' ? new Set(p[4].split(',').map(Number)) : new Set<number>(),
+    weeklyInterval,
   }
 }
 
@@ -69,6 +81,7 @@ export default function EditTaskPage({ params }: { params: { groupId: string; ta
   const [minute, setMinute]           = useState('00')
   const [dueDate, setDueDate]         = useState(todayDate())
   const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set())
+  const [weeklyInterval, setWeeklyInterval] = useState(1)
   const [monthDay, setMonthDay]       = useState(1)
   const [startDate, setStartDate]     = useState(todayDate())
   const [loading, setLoading]         = useState(true)
@@ -80,9 +93,10 @@ export default function EditTaskPage({ params }: { params: { groupId: string; ta
       .then(task => {
         setTitle(task.title)
         setDescription(task.description ?? '')
-        // Detect BIWEEKLY: stored as CUSTOM recurrence with BIWEEKLY cron prefix
-        const isBiweekly = task.recurrence === 'CUSTOM' && task.recurrenceCron?.startsWith('BIWEEKLY ')
-        setRecType(isBiweekly ? 'BIWEEKLY' : (task.recurrence as RecType) ?? 'NONE')
+        // Detect weekly-with-interval: stored as CUSTOM with WEEKLY_N or BIWEEKLY prefix
+        const isWeeklyInterval = task.recurrence === 'CUSTOM' &&
+          (task.recurrenceCron?.startsWith('BIWEEKLY ') || !!task.recurrenceCron?.match(/^WEEKLY_\d+ /))
+        setRecType(isWeeklyInterval ? 'WEEKLY' : (task.recurrence as RecType) ?? 'NONE')
 
         if (task.dueDate) {
           setDueDate(localDate(task.dueDate))
@@ -92,11 +106,12 @@ export default function EditTaskPage({ params }: { params: { groupId: string; ta
         }
 
         if (task.recurrenceCron) {
-          const { mm, HH, monthDay: md, weekDays } = parseCron(task.recurrenceCron)
+          const { mm, HH, monthDay: md, weekDays, weeklyInterval: wi } = parseCron(task.recurrenceCron)
           setHour(HH)
           setMinute(mm)
           setMonthDay(md)
           setSelectedDays(weekDays)
+          setWeeklyInterval(wi)
         }
       })
       .catch(() => setError('Kunde inte ladda uppgift.'))
@@ -110,7 +125,7 @@ export default function EditTaskPage({ params }: { params: { groupId: string; ta
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    if ((recType === 'WEEKLY' || recType === 'BIWEEKLY') && selectedDays.size === 0) {
+    if (recType === 'WEEKLY' && selectedDays.size === 0) {
       setError('Välj minst en dag för veckovis återkommande.')
       return
     }
@@ -120,9 +135,9 @@ export default function EditTaskPage({ params }: { params: { groupId: string; ta
         ? dateTimeISO(dueDate, hour, minute)
         : dateTimeISO(startDate, hour, minute)
       const cron = recType !== 'NONE'
-        ? buildCron(recType, hour, minute, [...selectedDays], monthDay)
+        ? buildCron(recType, hour, minute, [...selectedDays], monthDay, weeklyInterval)
         : undefined
-      const recurrence = recType === 'BIWEEKLY' ? 'CUSTOM' : recType
+      const recurrence = (recType === 'WEEKLY' && weeklyInterval > 1) ? 'CUSTOM' : recType
 
       await api.patch(`/api/groups/${params.groupId}/tasks/${params.taskId}`, {
         title,
@@ -186,25 +201,30 @@ export default function EditTaskPage({ params }: { params: { groupId: string; ta
         <div className={styles.section}>
           <div className={styles.sectionTitle}>Återkommande mönster</div>
           <div className={styles.radioGroup}>
-            {(['NONE', 'DAILY', 'WEEKLY', 'BIWEEKLY', 'MONTHLY'] as const).map(type => (
+            {(['NONE', 'DAILY', 'WEEKLY', 'MONTHLY'] as const).map(type => (
               <label key={type} className={styles.radioRow}>
                 <input type="radio" name="recurrence" value={type}
                   checked={recType === type} onChange={() => setRecType(type)} />
                 <span className={styles.radioLabel}>
-                  {type === 'NONE' ? 'Aldrig'
-                    : type === 'DAILY' ? 'Dagligen'
-                    : type === 'WEEKLY' ? 'Varje vecka'
-                    : type === 'BIWEEKLY' ? 'Varannan vecka'
-                    : 'Månadsvis'}
+                  {type === 'NONE' ? 'Aldrig' : type === 'DAILY' ? 'Dagligen' : type === 'WEEKLY' ? 'Veckovis' : 'Månadsvis'}
                 </span>
-                {recType === type && (type === 'WEEKLY' || type === 'BIWEEKLY') && (
-                  <div className={styles.dayGrid}>
-                    {WEEK_DAYS.map(({ label, cron }) => (
-                      <button key={cron} type="button"
-                        className={`${styles.dayBtn} ${selectedDays.has(cron) ? styles.dayBtnActive : ''}`}
-                        onClick={() => toggleDay(cron)}>{label}</button>
-                    ))}
-                  </div>
+                {recType === type && type === 'WEEKLY' && (
+                  <>
+                    <div className={styles.inlineDetail}>
+                      Var
+                      <input type="number" min={1} max={52} value={weeklyInterval}
+                        onChange={e => setWeeklyInterval(Math.max(1, Number(e.target.value)))}
+                        className={styles.numInput} />
+                      vecka(r) på:
+                    </div>
+                    <div className={styles.dayGrid}>
+                      {WEEK_DAYS.map(({ label, cron }) => (
+                        <button key={cron} type="button"
+                          className={`${styles.dayBtn} ${selectedDays.has(cron) ? styles.dayBtnActive : ''}`}
+                          onClick={() => toggleDay(cron)}>{label}</button>
+                      ))}
+                    </div>
+                  </>
                 )}
                 {recType === type && type === 'MONTHLY' && (
                   <div className={styles.inlineDetail}>

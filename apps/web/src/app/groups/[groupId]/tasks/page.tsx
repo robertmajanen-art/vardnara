@@ -12,20 +12,36 @@ const DAY_MAP: Record<number, string> = {
   0: 'Sön', 1: 'Mån', 2: 'Tis', 3: 'Ons', 4: 'Tor', 5: 'Fre', 6: 'Lör',
 }
 
+// ── Weekly-interval cron helpers ─────────────────────────────────────────────
+// Encoding: interval=1  → recurrence='WEEKLY',  cron='mm HH * * days'
+//           interval>1  → recurrence='CUSTOM',  cron='WEEKLY_N mm HH * * days'
+// Legacy:   BIWEEKLY prefix treated as WEEKLY_2
+
+function parseWeeklyInterval(cron: string): { interval: number; parts: string[] } {
+  if (cron.startsWith('BIWEEKLY ')) {
+    return { interval: 2, parts: cron.slice('BIWEEKLY '.length).split(' ') }
+  }
+  const m = cron.match(/^WEEKLY_(\d+) (.+)$/)
+  if (m) {
+    return { interval: Number(m[1]), parts: m[2].split(' ') }
+  }
+  return { interval: 1, parts: cron.split(' ') }
+}
+
 function formatRecurrence(task: Task): string | null {
   if (!task.recurrence || task.recurrence === 'NONE') return null
   const cron = task.recurrenceCron ?? ''
 
-  // Bi-weekly: CUSTOM recurrence with "BIWEEKLY " prefix
-  if (task.recurrence === 'CUSTOM' && cron.startsWith('BIWEEKLY ')) {
-    const actualCron = cron.slice('BIWEEKLY '.length)
-    const parts = actualCron.split(' ')
-    const mm = parts[0] ?? '00'
-    const HH = parts[1] ?? '00'
-    const timeStr = ` kl ${HH.padStart(2, '0')}:${mm.padStart(2, '0')}`
-    const dayPart = parts[4] ?? ''
-    const days = dayPart ? dayPart.split(',').map((d) => DAY_MAP[Number(d)] ?? d).join(', ') : ''
-    return `🔄 Varannan vecka${days ? ': ' + days : ''}${timeStr}`
+  if (task.recurrence === 'CUSTOM') {
+    const { interval, parts } = parseWeeklyInterval(cron)
+    if (interval > 1) {
+      const mm = parts[0] ?? '00'
+      const HH = parts[1] ?? '00'
+      const timeStr = ` kl ${HH.padStart(2, '0')}:${mm.padStart(2, '0')}`
+      const dayPart = parts[4] ?? ''
+      const days = dayPart ? dayPart.split(',').map((d) => DAY_MAP[Number(d)] ?? d).join(', ') : ''
+      return `🔄 Var ${interval}:e vecka${days ? ': ' + days : ''}${timeStr}`
+    }
   }
 
   const parts = cron.split(' ')
@@ -37,7 +53,7 @@ function formatRecurrence(task: Task): string | null {
   if (task.recurrence === 'WEEKLY') {
     const dayPart = parts[4] ?? ''
     const days = dayPart.split(',').map((d) => DAY_MAP[Number(d)] ?? d).join(', ')
-    return `🔄 Veckovis: ${days}${timeStr}`
+    return `🔄 Varje vecka: ${days}${timeStr}`
   }
   if (task.recurrence === 'MONTHLY') return `🔄 Månadsvis dag ${parts[2]}${timeStr}`
   return `🔄 ${task.recurrence}`
@@ -47,10 +63,8 @@ function formatRecurrence(task: Task): string | null {
 
 function taskScheduledHourMinute(task: Task): { h: number; m: number } {
   if (task.recurrenceCron) {
-    const cron = task.recurrenceCron.startsWith('BIWEEKLY ')
-      ? task.recurrenceCron.slice('BIWEEKLY '.length)
-      : task.recurrenceCron
-    const parts = cron.split(' ')
+    // parseWeeklyInterval strips any prefix and returns the underlying cron parts
+    const { parts } = parseWeeklyInterval(task.recurrenceCron)
     return { m: Number(parts[0] ?? 0), h: Number(parts[1] ?? 0) }
   }
   if (task.dueDate) {
@@ -75,26 +89,28 @@ function taskOccursOnDate(task: Task, viewDate: Date): boolean {
   if (task.recurrence === 'DAILY') return true
 
   const cron = task.recurrenceCron ?? ''
-  const isActuallyBiweekly = task.recurrence === 'CUSTOM' && cron.startsWith('BIWEEKLY ')
-  const actualCron = isActuallyBiweekly ? cron.slice('BIWEEKLY '.length) : cron
-  const parts = actualCron.split(' ')
 
   if (task.recurrence === 'WEEKLY') {
+    const parts = cron.split(' ')
     const dayPart = parts[4] ?? '*'
     if (dayPart === '*') return true
     return dayPart.split(',').map(Number).includes(viewDate.getDay())
   }
 
-  if (isActuallyBiweekly) {
-    const dayPart = parts[4] ?? '*'
-    const days = dayPart !== '*' ? dayPart.split(',').map(Number) : [0, 1, 2, 3, 4, 5, 6]
-    if (!days.includes(viewDate.getDay())) return false
-    const msPerWeek = 7 * 24 * 60 * 60 * 1000
-    const weekDiff = Math.round((viewDay.getTime() - startDay.getTime()) / msPerWeek)
-    return weekDiff % 2 === 0
+  if (task.recurrence === 'CUSTOM') {
+    const { interval, parts } = parseWeeklyInterval(cron)
+    if (interval > 1) {
+      const dayPart = parts[4] ?? '*'
+      const days = dayPart !== '*' ? dayPart.split(',').map(Number) : [0, 1, 2, 3, 4, 5, 6]
+      if (!days.includes(viewDate.getDay())) return false
+      const msPerWeek = 7 * 24 * 60 * 60 * 1000
+      const weekDiff = Math.round((viewDay.getTime() - startDay.getTime()) / msPerWeek)
+      return weekDiff % interval === 0
+    }
   }
 
   if (task.recurrence === 'MONTHLY') {
+    const parts = cron.split(' ')
     const dayOfMonth = parts[2] && parts[2] !== '*' ? Number(parts[2]) : startDate.getDate()
     return viewDate.getDate() === dayOfMonth
   }
