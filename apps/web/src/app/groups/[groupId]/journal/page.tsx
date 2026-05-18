@@ -46,8 +46,9 @@ export default function JournalPage({ params }: { params: { groupId: string } })
     setEntries(prev => prev.filter(e => e.id !== entryId))
     try {
       await api.delete(`/api/groups/${params.groupId}/journal/${entryId}`)
-    } catch {
+    } catch (e: unknown) {
       setEntries(snapshot)
+      alert(e instanceof Error ? e.message : 'Kunde inte ta bort dagboksposten.')
     }
   }
 

@@ -90,10 +90,10 @@ export const journalRoutes: FastifyPluginAsync = async (fastify) => {
     },
   )
 
-  // DELETE /:groupId/journal/:id
+  // DELETE /:groupId/journal/:id — Supporter+
   fastify.delete<{ Params: { groupId: string; id: string } }>(
     '/:groupId/journal/:id',
-    { onRequest: [fastify.authenticate], preHandler: [tenantLead] },
+    { onRequest: [fastify.authenticate], preHandler: [tenantSupporter] },
     async (request, reply) => {
       const { groupId, id } = request.params
       const entry = await db.journalEntry.findFirst({ where: { id, groupId } })

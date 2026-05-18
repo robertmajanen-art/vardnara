@@ -100,10 +100,10 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
     },
   )
 
-  // DELETE /api/groups/:groupId/tasks/:taskId — LEAD only
+  // DELETE /api/groups/:groupId/tasks/:taskId — Supporter+
   fastify.delete<{ Params: TP }>(
     '/:groupId/tasks/:taskId',
-    { onRequest: [fastify.authenticate], preHandler: [mwLead()] },
+    { onRequest: [fastify.authenticate], preHandler: [mwSupporter()] },
     async (req, reply) => {
       await db.task.delete({
         where: { id: req.params.taskId, groupId: req.params.groupId },

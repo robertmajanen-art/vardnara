@@ -49,8 +49,9 @@ export default function CalendarPage({ params }: { params: { groupId: string } }
     setAppointments(prev => prev.filter(a => a.id !== aptId))
     try {
       await api.delete(`/api/groups/${params.groupId}/appointments/${aptId}`)
-    } catch {
+    } catch (e: unknown) {
       setAppointments(snapshot)
+      alert(e instanceof Error ? e.message : 'Kunde inte ta bort besöket.')
     }
   }
 

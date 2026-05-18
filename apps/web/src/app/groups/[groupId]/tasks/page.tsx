@@ -268,8 +268,9 @@ export default function TasksPage({ params }: { params: { groupId: string } }) {
     setAllTasks(prev => prev.filter(t => t.id !== taskId))
     try {
       await api.delete(`/api/groups/${params.groupId}/tasks/${taskId}`)
-    } catch {
+    } catch (e: unknown) {
       setAllTasks(snapshot)
+      alert(e instanceof Error ? e.message : 'Kunde inte ta bort uppgiften.')
     }
   }
 

@@ -112,10 +112,10 @@ export const appointmentRoutes: FastifyPluginAsync = async (fastify) => {
     },
   )
 
-  // DELETE /api/groups/:groupId/appointments/:appointmentId — LEAD only
+  // DELETE /api/groups/:groupId/appointments/:appointmentId — Supporter+
   fastify.delete<{ Params: AP }>(
     '/:groupId/appointments/:appointmentId',
-    { onRequest: [fastify.authenticate], preHandler: [mwLead()] },
+    { onRequest: [fastify.authenticate], preHandler: [mwSupporter()] },
     async (req, reply) => {
       await db.appointment.delete({
         where: { id: req.params.appointmentId, groupId: req.params.groupId },
