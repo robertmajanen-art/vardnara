@@ -9,6 +9,21 @@ import pageStyles from './new.module.css'
 const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
 const MINUTES = ['00', '10', '20', '30', '40', '50']
 
+const WEEK_DAYS = [
+  { label: 'Mån', cron: 1 }, { label: 'Tis', cron: 2 }, { label: 'Ons', cron: 3 },
+  { label: 'Tor', cron: 4 }, { label: 'Fre', cron: 5 }, { label: 'Lör', cron: 6 }, { label: 'Sön', cron: 0 },
+]
+
+type RecType = 'NONE' | 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY'
+
+function buildRecCron(type: RecType, days: number[], monthDay: number, h: string, m: string): string {
+  if (type === 'DAILY')    return `${m} ${h} * * *`
+  if (type === 'WEEKLY')   return `${m} ${h} * * ${[...days].sort().join(',')}`
+  if (type === 'BIWEEKLY') return `BIWEEKLY ${m} ${h} * * ${[...days].sort().join(',') || '1'}`
+  if (type === 'MONTHLY')  return `${m} ${h} ${monthDay} * *`
+  return ''
+}
+
 /** Split a local datetime string "YYYY-MM-DDTHH:MM" into parts */
 function splitDt(dt: string) {
   const [date = '', time = '09:00'] = dt.split('T')
@@ -22,7 +37,6 @@ function DateTimePicker({ value, onChange, inputClass }: {
   inputClass: string
 }) {
   const { date, hour, minute } = splitDt(value)
-  // Local state for the date field so manual typing doesn't discard partial input
   const [localDate, setLocalDate] = useState(date)
   useEffect(() => { setLocalDate(splitDt(value).date) }, [value])
 
@@ -40,20 +54,10 @@ function DateTimePicker({ value, onChange, inputClass }: {
         style={{ flex: '1 1 140px', minWidth: 0 }}
         required
       />
-      <select
-        value={hour}
-        onChange={(e) => emit(localDate, e.target.value, minute)}
-        className={inputClass}
-        style={{ flex: '0 0 auto' }}
-      >
+      <select value={hour} onChange={(e) => emit(localDate, e.target.value, minute)} className={inputClass} style={{ flex: '0 0 auto' }}>
         {HOURS.map((h) => <option key={h} value={h}>{h}</option>)}
       </select>
-      <select
-        value={minute}
-        onChange={(e) => emit(localDate, hour, e.target.value)}
-        className={inputClass}
-        style={{ flex: '0 0 auto' }}
-      >
+      <select value={minute} onChange={(e) => emit(localDate, hour, e.target.value)} className={inputClass} style={{ flex: '0 0 auto' }}>
         {MINUTES.map((m) => <option key={m} value={m}>{m}</option>)}
       </select>
     </div>
@@ -70,19 +74,16 @@ const TYPE_LABELS: Record<string, string> = {
   OTHER: '✨ Övrigt',
 }
 
-/** Format a Date as a local datetime-local string (YYYY-MM-DDTHH:MM) */
 function localStr(d: Date): string {
   const p = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-/** Round up to nearest 10 minutes using local time */
 function roundedLocalStr(offsetMs: number): string {
   const tenMin = 10 * 60 * 1000
   return localStr(new Date(Math.ceil((Date.now() + offsetMs) / tenMin) * tenMin))
 }
 
-/** Add minutes to a local datetime-local string, return local string */
 function addMinsLocal(localDt: string, mins: number): string {
   const [datePart, timePart] = localDt.split('T')
   const [y, mo, d] = datePart.split('-').map(Number)
@@ -90,7 +91,6 @@ function addMinsLocal(localDt: string, mins: number): string {
   return localStr(new Date(y, mo - 1, d, h, mi + mins))
 }
 
-/** Round minute component to nearest 10 in a local datetime-local string */
 function roundTo10Min(localDt: string): string {
   const [datePart, timePart] = localDt.split('T')
   if (!timePart) return localDt
@@ -102,8 +102,8 @@ function roundTo10Min(localDt: string): string {
 export default function NewAppointmentPage({ params }: { params: { groupId: string } }) {
   const router = useRouter()
 
-  const startDefault = roundedLocalStr(60 * 60 * 1000)    // 1 hour from now, rounded
-  const endDefault = addMinsLocal(startDefault, 30)        // 30 min after start
+  const startDefault = roundedLocalStr(60 * 60 * 1000)
+  const endDefault = addMinsLocal(startDefault, 30)
 
   const [type, setType] = useState('HEALTHCARE')
   const [title, setTitle] = useState('')
@@ -111,10 +111,15 @@ export default function NewAppointmentPage({ params }: { params: { groupId: stri
   const [startTime, setStartTime] = useState(startDefault)
   const [endTime, setEndTime] = useState(endDefault)
   const [notes, setNotes] = useState('')
+
+  // Recurrence
+  const [recType, setRecType] = useState<RecType>('NONE')
+  const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set())
+  const [monthDay, setMonthDay] = useState(1)
+
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  // Pre-fill from URL search params (e.g. when arriving from journal appointment prompt)
   useEffect(() => {
     const p = new URLSearchParams(window.location.search)
     if (p.get('title')) setTitle(p.get('title')!)
@@ -130,6 +135,10 @@ export default function NewAppointmentPage({ params }: { params: { groupId: stri
     if (p.get('notes')) setNotes(p.get('notes')!)
   }, [])
 
+  function toggleDay(cron: number) {
+    setSelectedDays(prev => { const n = new Set(prev); n.has(cron) ? n.delete(cron) : n.add(cron); return n })
+  }
+
   function handleStartChange(val: string) {
     const rounded = roundTo10Min(val)
     setStartTime(rounded)
@@ -144,8 +153,18 @@ export default function NewAppointmentPage({ params }: { params: { groupId: stri
     e.preventDefault()
     setError('')
     if (endTime && endTime <= startTime) { setError('Sluttiden måste vara efter starttiden.'); return }
+    if ((recType === 'WEEKLY' || recType === 'BIWEEKLY') && selectedDays.size === 0) {
+      setError('Välj minst en dag för veckovis återkommande.')
+      return
+    }
     setSaving(true)
     try {
+      const { hour, minute } = splitDt(startTime)
+      const cron = recType !== 'NONE'
+        ? buildRecCron(recType, [...selectedDays], monthDay, hour, minute)
+        : undefined
+      const recurrence = recType === 'BIWEEKLY' ? 'CUSTOM' : recType
+
       await api.post(`/api/groups/${params.groupId}/appointments`, {
         type,
         title,
@@ -153,6 +172,8 @@ export default function NewAppointmentPage({ params }: { params: { groupId: stri
         startTime: new Date(startTime).toISOString(),
         ...(endTime ? { endTime: new Date(endTime).toISOString() } : {}),
         ...(notes ? { notes } : {}),
+        recurrence,
+        ...(cron ? { recurrenceCron: cron } : {}),
       })
       router.push(`/groups/${params.groupId}/calendar` as never)
     } catch (err: unknown) {
@@ -222,6 +243,49 @@ export default function NewAppointmentPage({ params }: { params: { groupId: stri
             style={{ resize: 'vertical' }}
           />
         </label>
+
+        {/* ── Recurrence ── */}
+        <div className={pageStyles.section}>
+          <div className={pageStyles.sectionTitle}>Återkommande mönster</div>
+          <div className={pageStyles.radioGroup}>
+            {(['NONE', 'DAILY', 'WEEKLY', 'BIWEEKLY', 'MONTHLY'] as const).map((rt) => (
+              <label key={rt} className={pageStyles.radioRow}>
+                <input
+                  type="radio"
+                  name="recurrence"
+                  value={rt}
+                  checked={recType === rt}
+                  onChange={() => setRecType(rt)}
+                />
+                <span className={pageStyles.radioLabel}>
+                  {rt === 'NONE' ? 'Aldrig'
+                    : rt === 'DAILY' ? 'Dagligen'
+                    : rt === 'WEEKLY' ? 'Varje vecka'
+                    : rt === 'BIWEEKLY' ? 'Varannan vecka'
+                    : 'Månadsvis'}
+                </span>
+                {recType === rt && (rt === 'WEEKLY' || rt === 'BIWEEKLY') && (
+                  <div className={pageStyles.dayGrid}>
+                    {WEEK_DAYS.map(({ label, cron }) => (
+                      <button key={cron} type="button"
+                        className={`${pageStyles.dayBtn} ${selectedDays.has(cron) ? pageStyles.dayBtnActive : ''}`}
+                        onClick={() => toggleDay(cron)}>{label}</button>
+                    ))}
+                  </div>
+                )}
+                {recType === rt && rt === 'MONTHLY' && (
+                  <div className={pageStyles.inlineDetail}>
+                    Dag
+                    <input type="number" min={1} max={31} value={monthDay}
+                      onChange={e => setMonthDay(Number(e.target.value))}
+                      className={pageStyles.numInput} />
+                    i varje månad
+                  </div>
+                )}
+              </label>
+            ))}
+          </div>
+        </div>
 
         {error && <p style={{ color: 'var(--color-error)', fontSize: '0.875rem' }}>{error}</p>}
 

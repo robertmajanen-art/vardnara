@@ -252,6 +252,8 @@ model Appointment {
   notes           String?
   startTime       DateTime
   endTime         DateTime?
+  recurrence      RecurrencePattern @default(NONE)
+  recurrenceCron  String?           // cron expression (or "BIWEEKLY mm HH * * days")
   assigneeAccepted Boolean?       // null = pending, true = accepted, false = declined
   assigneeNote    String?         // note from assignee on accept/decline
   outcomeNotes    String?         // post-meeting outcome added by assignee

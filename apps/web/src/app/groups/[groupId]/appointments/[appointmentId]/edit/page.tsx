@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { api } from '../../../../../../lib/api'
 import detailStyles from '../../../detail.module.css'
 import formStyles from '../../../../../login/login.module.css'
+import recStyles from '../../../calendar/new/new.module.css'
 
 const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
 const MINUTES = ['00', '10', '20', '30', '40', '50']
@@ -14,6 +15,13 @@ const TYPE_LABELS: Record<string, string> = {
   THERAPY: '🌿 Terapi', FAMILY: '💜 Familj', OTHER: '✨ Övrigt',
 }
 
+const WEEK_DAYS = [
+  { label: 'Mån', cron: 1 }, { label: 'Tis', cron: 2 }, { label: 'Ons', cron: 3 },
+  { label: 'Tor', cron: 4 }, { label: 'Fre', cron: 5 }, { label: 'Lör', cron: 6 }, { label: 'Sön', cron: 0 },
+]
+
+type RecType = 'NONE' | 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY'
+
 type ExistingAppointment = {
   type: string
   title: string
@@ -21,6 +29,8 @@ type ExistingAppointment = {
   notes?: string | null
   startTime: string
   endTime?: string | null
+  recurrence?: string | null
+  recurrenceCron?: string | null
 }
 
 function localStr(d: Date): string {
@@ -63,17 +73,39 @@ function addMinsLocal(localDt: string, mins: number): string {
   return localStr(new Date(y, mo - 1, d, h, mi + mins))
 }
 
+function parseCron(cron: string): { mm: string; HH: string; monthDay: number; weekDays: Set<number> } {
+  const actualCron = cron.startsWith('BIWEEKLY ') ? cron.slice('BIWEEKLY '.length) : cron
+  const p = actualCron.split(' ')
+  return {
+    mm: p[0] ?? '00',
+    HH: p[1] ?? '09',
+    monthDay: p[2] && p[2] !== '*' ? Number(p[2]) : 1,
+    weekDays: p[4] && p[4] !== '*' ? new Set(p[4].split(',').map(Number)) : new Set<number>(),
+  }
+}
+
+function buildRecCron(type: RecType, days: number[], monthDay: number, h: string, m: string): string {
+  if (type === 'DAILY')    return `${m} ${h} * * *`
+  if (type === 'WEEKLY')   return `${m} ${h} * * ${[...days].sort().join(',')}`
+  if (type === 'BIWEEKLY') return `BIWEEKLY ${m} ${h} * * ${[...days].sort().join(',') || '1'}`
+  if (type === 'MONTHLY')  return `${m} ${h} ${monthDay} * *`
+  return ''
+}
+
 export default function EditAppointmentPage({ params }: { params: { groupId: string; appointmentId: string } }) {
   const router = useRouter()
-  const [type, setType]         = useState('HEALTHCARE')
-  const [title, setTitle]       = useState('')
-  const [location, setLocation] = useState('')
+  const [type, setType]           = useState('HEALTHCARE')
+  const [title, setTitle]         = useState('')
+  const [location, setLocation]   = useState('')
   const [startTime, setStartTime] = useState('')
-  const [endTime, setEndTime]   = useState('')
-  const [notes, setNotes]       = useState('')
-  const [loading, setLoading]   = useState(true)
-  const [saving, setSaving]     = useState(false)
-  const [error, setError]       = useState('')
+  const [endTime, setEndTime]     = useState('')
+  const [notes, setNotes]         = useState('')
+  const [recType, setRecType]     = useState<RecType>('NONE')
+  const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set())
+  const [monthDay, setMonthDay]   = useState(1)
+  const [loading, setLoading]     = useState(true)
+  const [saving, setSaving]       = useState(false)
+  const [error, setError]         = useState('')
 
   useEffect(() => {
     api.get<ExistingAppointment>(`/api/groups/${params.groupId}/appointments/${params.appointmentId}`)
@@ -84,10 +116,28 @@ export default function EditAppointmentPage({ params }: { params: { groupId: str
         setNotes(apt.notes ?? '')
         setStartTime(localStr(new Date(apt.startTime)))
         setEndTime(apt.endTime ? localStr(new Date(apt.endTime)) : '')
+
+        const isBiweekly = apt.recurrence === 'CUSTOM' && apt.recurrenceCron?.startsWith('BIWEEKLY ')
+        setRecType(isBiweekly ? 'BIWEEKLY' : (apt.recurrence as RecType) ?? 'NONE')
+
+        if (apt.recurrenceCron) {
+          const { mm, HH, monthDay: md, weekDays } = parseCron(apt.recurrenceCron)
+          setMonthDay(md)
+          setSelectedDays(weekDays)
+          // Adjust startTime hour/minute from cron for clarity
+          if (apt.recurrence && apt.recurrence !== 'NONE') {
+            const { date } = splitDt(localStr(new Date(apt.startTime)))
+            setStartTime(`${date}T${HH.padStart(2, '0')}:${mm.padStart(2, '0')}`)
+          }
+        }
       })
       .catch(() => setError('Kunde inte ladda besök.'))
       .finally(() => setLoading(false))
   }, [params.groupId, params.appointmentId])
+
+  function toggleDay(cron: number) {
+    setSelectedDays(prev => { const n = new Set(prev); n.has(cron) ? n.delete(cron) : n.add(cron); return n })
+  }
 
   function handleStartChange(val: string) {
     setStartTime(val)
@@ -98,14 +148,26 @@ export default function EditAppointmentPage({ params }: { params: { groupId: str
     e.preventDefault()
     setError('')
     if (endTime && endTime <= startTime) { setError('Sluttiden måste vara efter starttiden.'); return }
+    if ((recType === 'WEEKLY' || recType === 'BIWEEKLY') && selectedDays.size === 0) {
+      setError('Välj minst en dag för veckovis återkommande.')
+      return
+    }
     setSaving(true)
     try {
+      const { hour, minute } = splitDt(startTime)
+      const cron = recType !== 'NONE'
+        ? buildRecCron(recType, [...selectedDays], monthDay, hour, minute)
+        : null
+      const recurrence = recType === 'BIWEEKLY' ? 'CUSTOM' : recType
+
       await api.patch(`/api/groups/${params.groupId}/appointments/${params.appointmentId}`, {
         type, title,
-        ...(location ? { location } : {}),
+        ...(location ? { location } : { location: null }),
         startTime: new Date(startTime).toISOString(),
-        ...(endTime ? { endTime: new Date(endTime).toISOString() } : {}),
-        ...(notes ? { notes } : {}),
+        ...(endTime ? { endTime: new Date(endTime).toISOString() } : { endTime: null }),
+        ...(notes ? { notes } : { notes: null }),
+        recurrence,
+        recurrenceCron: cron,
       })
       router.push(`/groups/${params.groupId}/appointments/${params.appointmentId}` as never)
     } catch (err: unknown) {
@@ -161,6 +223,44 @@ export default function EditAppointmentPage({ params }: { params: { groupId: str
             className={formStyles.input} rows={4} placeholder="Förberedelser, vad som ska tas upp..."
             style={{ resize: 'vertical' }} />
         </label>
+
+        {/* ── Recurrence ── */}
+        <div className={recStyles.section}>
+          <div className={recStyles.sectionTitle}>Återkommande mönster</div>
+          <div className={recStyles.radioGroup}>
+            {(['NONE', 'DAILY', 'WEEKLY', 'BIWEEKLY', 'MONTHLY'] as const).map((rt) => (
+              <label key={rt} className={recStyles.radioRow}>
+                <input type="radio" name="recurrence" value={rt}
+                  checked={recType === rt} onChange={() => setRecType(rt)} />
+                <span className={recStyles.radioLabel}>
+                  {rt === 'NONE' ? 'Aldrig'
+                    : rt === 'DAILY' ? 'Dagligen'
+                    : rt === 'WEEKLY' ? 'Varje vecka'
+                    : rt === 'BIWEEKLY' ? 'Varannan vecka'
+                    : 'Månadsvis'}
+                </span>
+                {recType === rt && (rt === 'WEEKLY' || rt === 'BIWEEKLY') && (
+                  <div className={recStyles.dayGrid}>
+                    {WEEK_DAYS.map(({ label, cron }) => (
+                      <button key={cron} type="button"
+                        className={`${recStyles.dayBtn} ${selectedDays.has(cron) ? recStyles.dayBtnActive : ''}`}
+                        onClick={() => toggleDay(cron)}>{label}</button>
+                    ))}
+                  </div>
+                )}
+                {recType === rt && rt === 'MONTHLY' && (
+                  <div className={recStyles.inlineDetail}>
+                    Dag
+                    <input type="number" min={1} max={31} value={monthDay}
+                      onChange={e => setMonthDay(Number(e.target.value))}
+                      className={recStyles.numInput} />
+                    i varje månad
+                  </div>
+                )}
+              </label>
+            ))}
+          </div>
+        </div>
 
         {error && <p style={{ color: 'var(--color-error)', fontSize: '0.875rem' }}>{error}</p>}
 

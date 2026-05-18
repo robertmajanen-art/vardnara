@@ -15,6 +15,9 @@ type Appointment = {
   notes?: string | null
   assignee?: { id: string; email: string } | null
   assigneeAccepted?: boolean | null
+  recurrence?: string | null
+  recurrenceCron?: string | null
+  _virtual?: boolean // projected virtual occurrence (not from DB directly)
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -37,14 +40,88 @@ function formatDayLabel(d: Date): string {
 
 const fmtTime = new Intl.DateTimeFormat('sv-SE', { hour: '2-digit', minute: '2-digit' })
 
+// ── Recurring appointment projection ─────────────────────────────────────────
+
+function projectAppointments(appointments: Appointment[], from: Date, to: Date): Appointment[] {
+  const result: Appointment[] = []
+  for (const apt of appointments) {
+    const rec = apt.recurrence
+    if (!rec || rec === 'NONE') {
+      result.push(apt)
+      continue
+    }
+
+    const startDate = new Date(apt.startTime)
+    const duration = apt.endTime
+      ? new Date(apt.endTime).getTime() - startDate.getTime()
+      : null
+
+    const cron = apt.recurrenceCron ?? ''
+    const isActuallyBiweekly = rec === 'CUSTOM' && cron.startsWith('BIWEEKLY ')
+    const actualCron = isActuallyBiweekly ? cron.slice('BIWEEKLY '.length) : cron
+    const parts = actualCron.split(' ')
+    const cronMm = Number(parts[0] ?? 0)
+    const cronHH = Number(parts[1] ?? 0)
+
+    // Start from max(from, startDate), iterate day by day
+    const anchorDay = new Date(startDate); anchorDay.setHours(0, 0, 0, 0)
+    const cursor = new Date(Math.max(from.getTime(), startDate.getTime()))
+    cursor.setHours(0, 0, 0, 0)
+    const end = new Date(to); end.setHours(23, 59, 59, 999)
+
+    while (cursor <= end) {
+      let shouldInclude = false
+
+      if (rec === 'DAILY') {
+        shouldInclude = true
+      } else if (rec === 'WEEKLY') {
+        const dayPart = parts[4] ?? '*'
+        if (dayPart === '*') shouldInclude = true
+        else shouldInclude = dayPart.split(',').map(Number).includes(cursor.getDay())
+      } else if (isActuallyBiweekly) {
+        const dayPart = parts[4] ?? '*'
+        const days = dayPart !== '*' ? dayPart.split(',').map(Number) : [0, 1, 2, 3, 4, 5, 6]
+        if (days.includes(cursor.getDay())) {
+          const msPerWeek = 7 * 24 * 60 * 60 * 1000
+          const weekDiff = Math.round((cursor.getTime() - anchorDay.getTime()) / msPerWeek)
+          shouldInclude = weekDiff % 2 === 0
+        }
+      } else if (rec === 'MONTHLY') {
+        const dayOfMonth = parts[2] && parts[2] !== '*' ? Number(parts[2]) : startDate.getDate()
+        shouldInclude = cursor.getDate() === dayOfMonth
+      }
+
+      if (shouldInclude) {
+        const occDate = new Date(cursor)
+        occDate.setHours(cronHH, cronMm, 0, 0)
+        const isBase = dayKey(occDate) === dayKey(startDate)
+        result.push({
+          ...apt,
+          startTime: occDate.toISOString(),
+          endTime: duration ? new Date(occDate.getTime() + duration).toISOString() : apt.endTime,
+          _virtual: !isBase,
+        })
+      }
+
+      cursor.setDate(cursor.getDate() + 1)
+    }
+  }
+  return result
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function CalendarPage({ params }: { params: { groupId: string } }) {
   const { t } = useTranslation()
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
+  const [clientNow, setClientNow] = useState<Date | null>(null)
   const todayRef = useRef<HTMLElement>(null)
 
+  useEffect(() => { setClientNow(new Date()) }, [])
+
   async function handleDelete(aptId: string) {
-    if (!window.confirm('Ta bort besöket permanent?')) return
+    if (!window.confirm('Ta bort besöket permanent? (Alla förekomster tas bort)')) return
     const snapshot = appointments
     setAppointments(prev => prev.filter(a => a.id !== aptId))
     try {
@@ -79,12 +156,13 @@ export default function CalendarPage({ params }: { params: { groupId: string } }
 
   const aptMap = useMemo(() => {
     const m = new Map<string, Appointment[]>()
-    for (const apt of appointments) {
+    const projected = projectAppointments(appointments, new Date(fromStr), new Date(toStr))
+    for (const apt of projected) {
       const k = dayKey(new Date(apt.startTime))
       m.set(k, [...(m.get(k) ?? []), apt])
     }
     return m
-  }, [appointments])
+  }, [appointments, fromStr, toStr])
 
   const days = useMemo(() => {
     const list: Date[] = []
@@ -119,37 +197,44 @@ export default function CalendarPage({ params }: { params: { groupId: string } }
               </h2>
 
               <ul className={styles.aptList}>
-                  {dayApts.map((apt) => {
-                    const start = new Date(apt.startTime)
-                    const end = apt.endTime ? new Date(apt.endTime) : null
-                    const color = TYPE_COLORS[apt.type] ?? '#6c757d'
-                    const timeStr = fmtTime.format(start) + (end ? `–${fmtTime.format(end)}` : '')
+                {dayApts.map((apt, idx) => {
+                  const start = new Date(apt.startTime)
+                  const end = apt.endTime ? new Date(apt.endTime) : null
+                  const color = TYPE_COLORS[apt.type] ?? '#6c757d'
+                  const timeStr = fmtTime.format(start) + (end ? `–${fmtTime.format(end)}` : '')
+                  const isPast = clientNow && (end ? end < clientNow : start < clientNow)
+                  const isRecurring = apt.recurrence && apt.recurrence !== 'NONE'
 
-                    return (
-                      <li key={apt.id} style={{ display: 'flex', alignItems: 'stretch', gap: '0.5rem' }}>
-                        <a
-                          href={`/groups/${params.groupId}/appointments/${apt.id}`}
-                          className={styles.aptCard}
-                          style={{ borderLeftColor: color, flex: 1 }}
-                        >
-                          <div className={styles.aptTime} style={{ color }}>{timeStr}</div>
-                          <div className={styles.aptTitle}>{apt.title}</div>
-                          {apt.location && <div className={styles.aptMeta}>📍 {apt.location}</div>}
-                          {apt.notes && <div className={styles.aptNotes}>{apt.notes}</div>}
-                        </a>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flexShrink: 0 }}>
-                          <a href={`/groups/${params.groupId}/appointments/${apt.id}/edit`}
-                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '2rem', height: '2rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text-muted)', fontSize: '0.8125rem', textDecoration: 'none' }}
-                            title="Redigera">✏️</a>
-                          <button
-                            onClick={() => handleDelete(apt.id)}
-                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '2rem', height: '2rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text-muted)', fontSize: '0.8125rem', cursor: 'pointer' }}
-                            title="Ta bort">🗑</button>
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ul>
+                  return (
+                    <li key={`${apt.id}-${idx}`}
+                      style={{ display: 'flex', alignItems: 'stretch', gap: '0.5rem' }}
+                      className={isPast ? styles.aptPast : undefined}>
+                      <a
+                        href={`/groups/${params.groupId}/appointments/${apt.id}`}
+                        className={styles.aptCard}
+                        style={{ borderLeftColor: color, flex: 1 }}
+                      >
+                        <div className={styles.aptTime} style={{ color }}>{timeStr}</div>
+                        <div className={styles.aptTitle}>{apt.title}</div>
+                        {apt.location && <div className={styles.aptMeta}>📍 {apt.location}</div>}
+                        {apt.notes && <div className={styles.aptNotes}>{apt.notes}</div>}
+                        {isRecurring && (
+                          <div className={styles.aptRecurringBadge}>🔄 Återkommande</div>
+                        )}
+                      </a>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flexShrink: 0 }}>
+                        <a href={`/groups/${params.groupId}/appointments/${apt.id}/edit`}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '2rem', height: '2rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text-muted)', fontSize: '0.8125rem', textDecoration: 'none' }}
+                          title="Redigera">✏️</a>
+                        <button
+                          onClick={() => handleDelete(apt.id)}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '2rem', height: '2rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text-muted)', fontSize: '0.8125rem', cursor: 'pointer' }}
+                          title="Ta bort">🗑</button>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
             </section>
           )
         })}

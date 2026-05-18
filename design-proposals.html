@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VårdNära – Design Proposals</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f0eb; padding: 2rem; }
+
+  h1 { text-align: center; color: #3a2a1e; font-size: 1.1rem; font-weight: 500; margin-bottom: 2.5rem; letter-spacing: 0.08em; text-transform: uppercase; }
+
+  .proposals { display: flex; gap: 2.5rem; align-items: flex-start; justify-content: center; flex-wrap: wrap; }
+
+  .proposal { width: 300px; background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.10); }
+  .proposal-label { text-align: center; padding: 0.75rem; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #888; background: #fafafa; border-top: 1px solid #eee; }
+
+  /* ── PROPOSAL 1: Warm Hearth ── */
+  .p1-header {
+    background: linear-gradient(135deg, #c0603a 0%, #e08255 60%, #f2a96e 100%);
+    padding: 2rem 1.5rem 1.5rem;
+    display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+  }
+  .p1-logo { font-size: 2.8rem; line-height: 1; }
+  .p1-name { color: #fff5ee; font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; }
+  .p1-tagline { color: #ffd8bc; font-size: 0.78rem; letter-spacing: 0.04em; }
+  .p1-nav { background: #f9f1ec; padding: 0.5rem 1rem; display: flex; gap: 0.5rem; }
+  .p1-tab { font-size: 0.72rem; padding: 0.35rem 0.75rem; border-radius: 20px; color: #9c6a4f; cursor: pointer; }
+  .p1-tab.active { background: #c0603a; color: white; font-weight: 600; }
+  .p1-body { padding: 1rem 1.25rem; }
+  .p1-card { background: #fff8f4; border-left: 3px solid #e08255; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 0.75rem; }
+  .p1-card-icon { font-size: 1rem; margin-bottom: 0.2rem; }
+  .p1-card-title { font-size: 0.85rem; font-weight: 600; color: #3a2010; }
+  .p1-card-meta { font-size: 0.72rem; color: #b08060; margin-top: 0.1rem; }
+  .p1-fab { display: flex; justify-content: flex-end; padding: 0 1.25rem 1.25rem; }
+  .p1-fab button { background: #c0603a; color: white; border: none; border-radius: 50px; padding: 0.6rem 1.4rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; box-shadow: 0 3px 12px rgba(192,96,58,0.4); }
+
+  /* ── PROPOSAL 2: Soft Bloom ── */
+  .p2-header {
+    background: linear-gradient(135deg, #8b5e9e 0%, #b07cc6 60%, #d4a5d8 100%);
+    padding: 2rem 1.5rem 1.5rem;
+    display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+  }
+  .p2-logo { font-size: 2.8rem; line-height: 1; }
+  .p2-name { color: #fff; font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; }
+  .p2-tagline { color: #e8d0f0; font-size: 0.78rem; letter-spacing: 0.04em; }
+  .p2-nav { background: #f9f4fb; padding: 0.5rem 1rem; display: flex; gap: 0.5rem; }
+  .p2-tab { font-size: 0.72rem; padding: 0.35rem 0.75rem; border-radius: 20px; color: #8b5e9e; cursor: pointer; }
+  .p2-tab.active { background: #8b5e9e; color: white; font-weight: 600; }
+  .p2-body { padding: 1rem 1.25rem; }
+  .p2-card { background: #fdf5ff; border: 1px solid #e8d0f0; border-radius: 12px; padding: 0.75rem 1rem; margin-bottom: 0.75rem; display: flex; gap: 0.75rem; align-items: flex-start; }
+  .p2-card-badge { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #b07cc6, #d4a5d8); display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+  .p2-card-title { font-size: 0.85rem; font-weight: 600; color: #2d1a38; }
+  .p2-card-meta { font-size: 0.72rem; color: #a070b8; margin-top: 0.1rem; }
+  .p2-add { margin: 0 1.25rem 1.25rem; background: linear-gradient(135deg, #8b5e9e, #b07cc6); color: white; border: none; border-radius: 12px; padding: 0.7rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; width: calc(100% - 2.5rem); }
+
+  /* ── PROPOSAL 3: Calm Green ── */
+  .p3-header {
+    background: linear-gradient(135deg, #2d6a4f 0%, #52b788 60%, #95d5b2 100%);
+    padding: 2rem 1.5rem 1.5rem;
+    display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+  }
+  .p3-logo { font-size: 2.8rem; line-height: 1; }
+  .p3-name { color: #fff; font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; }
+  .p3-tagline { color: #c8f0df; font-size: 0.78rem; letter-spacing: 0.04em; }
+  .p3-nav { background: #f2faf6; padding: 0.5rem 1rem; display: flex; gap: 0; border-bottom: 1px solid #d8eedf; }
+  .p3-tab { font-size: 0.72rem; padding: 0.4rem 0.85rem; color: #52b788; cursor: pointer; border-bottom: 2px solid transparent; }
+  .p3-tab.active { color: #2d6a4f; font-weight: 700; border-bottom-color: #2d6a4f; }
+  .p3-body { padding: 1rem 1.25rem; }
+  .p3-day { font-size: 0.7rem; font-weight: 700; color: #52b788; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.4rem; margin-top: 0.5rem; }
+  .p3-card { background: white; border-radius: 10px; padding: 0.7rem 1rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.75rem; box-shadow: 0 1px 6px rgba(45,106,79,0.10); }
+  .p3-dot { width: 10px; height: 10px; border-radius: 50%; background: #52b788; flex-shrink: 0; }
+  .p3-dot.orange { background: #f4a261; }
+  .p3-card-title { font-size: 0.85rem; font-weight: 600; color: #1b3a2a; flex: 1; }
+  .p3-card-time { font-size: 0.72rem; color: #52b788; font-weight: 600; }
+  .p3-fab { display: flex; justify-content: center; padding: 0 1.25rem 1.25rem; }
+  .p3-fab button { background: #2d6a4f; color: white; border: none; border-radius: 50px; padding: 0.6rem 2rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+
+  /* ── PROPOSAL 4: Golden Sun ── */
+  .p4-header {
+    background: linear-gradient(135deg, #b58a1a 0%, #e8b84b 60%, #f7d98a 100%);
+    padding: 2rem 1.5rem 1.5rem;
+    display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+  }
+  .p4-logo { font-size: 2.8rem; line-height: 1; }
+  .p4-name { color: #fff; font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; text-shadow: 0 1px 4px rgba(0,0,0,0.15); }
+  .p4-tagline { color: #fff8e0; font-size: 0.78rem; letter-spacing: 0.04em; }
+  .p4-stats { background: white; margin: 0 1.25rem; border-radius: 12px; display: flex; box-shadow: 0 2px 12px rgba(181,138,26,0.15); transform: translateY(-1rem); }
+  .p4-stat { flex: 1; padding: 0.8rem 0.5rem; text-align: center; }
+  .p4-stat + .p4-stat { border-left: 1px solid #f0e8d0; }
+  .p4-stat-num { font-size: 1.4rem; font-weight: 700; color: #b58a1a; }
+  .p4-stat-label { font-size: 0.65rem; color: #a08040; margin-top: 0.1rem; }
+  .p4-body { padding: 0.25rem 1.25rem 1rem; }
+  .p4-section { font-size: 0.72rem; font-weight: 700; color: #a08040; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.5rem; margin-top: 0.75rem; }
+  .p4-card { background: #fffbf0; border: 1px solid #f0e0a0; border-radius: 10px; padding: 0.7rem 1rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.75rem; }
+  .p4-icon { font-size: 1.3rem; flex-shrink: 0; }
+  .p4-card-title { font-size: 0.85rem; font-weight: 600; color: #3a2a00; }
+  .p4-card-meta { font-size: 0.72rem; color: #c0a050; margin-top: 0.1rem; }
+
+  /* color key */
+  .swatch-row { display: flex; gap: 0.5rem; padding: 0.75rem 1.25rem; background: #fafafa; border-top: 1px solid #eee; }
+  .swatch { width: 20px; height: 20px; border-radius: 50%; }
+  .swatch-label { font-size: 0.65rem; color: #888; display: flex; align-items: center; gap: 0.3rem; }
+</style>
+</head>
+<body>
+
+<h1>VårdNära — Designförslag</h1>
+
+<div class="proposals">
+
+  <!-- PROPOSAL 1 -->
+  <div class="proposal">
+    <div class="p1-header">
+      <div class="p1-logo">🏠</div>
+      <div class="p1-name">VårdNära</div>
+      <div class="p1-tagline">Nära varandra, alltid</div>
+    </div>
+    <div class="p1-nav">
+      <span class="p1-tab active">Kalender</span>
+      <span class="p1-tab">Dagbok</span>
+      <span class="p1-tab">Uppgifter</span>
+    </div>
+    <div class="p1-body">
+      <div class="p1-card">
+        <div class="p1-card-icon">🩺</div>
+        <div class="p1-card-title">Läkarbesök, Vårdcentral</div>
+        <div class="p1-card-meta">Imorgon · 10:30–11:00</div>
+      </div>
+      <div class="p1-card">
+        <div class="p1-card-icon">💊</div>
+        <div class="p1-card-title">Hämta medicin</div>
+        <div class="p1-card-meta">Fredag · Apotek Hjärtat</div>
+      </div>
+      <div class="p1-card">
+        <div class="p1-card-icon">🧘</div>
+        <div class="p1-card-title">Terapisamtal</div>
+        <div class="p1-card-meta">Måndag · 14:00</div>
+      </div>
+    </div>
+    <div class="p1-fab"><button>+ Nytt besök</button></div>
+    <div class="swatch-row">
+      <span class="swatch-label"><span class="swatch" style="background:#c0603a"></span> Terrakotta</span>
+      <span class="swatch-label"><span class="swatch" style="background:#f2a96e"></span> Amber</span>
+      <span class="swatch-label"><span class="swatch" style="background:#fff8f4"></span> Creme</span>
+    </div>
+    <div class="proposal-label">A · Varm härd</div>
+  </div>
+
+  <!-- PROPOSAL 2 -->
+  <div class="proposal">
+    <div class="p2-header">
+      <div class="p2-logo">💜</div>
+      <div class="p2-name">VårdNära</div>
+      <div class="p2-tagline">Omsorg i varje ögonblick</div>
+    </div>
+    <div class="p2-nav">
+      <span class="p2-tab active">Kalender</span>
+      <span class="p2-tab">Dagbok</span>
+      <span class="p2-tab">Uppgifter</span>
+    </div>
+    <div class="p2-body">
+      <div class="p2-card">
+        <div class="p2-card-badge">🏥</div>
+        <div>
+          <div class="p2-card-title">Läkarbesök, Vårdcentral</div>
+          <div class="p2-card-meta">Imorgon · 10:30–11:00</div>
+        </div>
+      </div>
+      <div class="p2-card">
+        <div class="p2-card-badge">📋</div>
+        <div>
+          <div class="p2-card-title">Hämta medicin</div>
+          <div class="p2-card-meta">Fredag · Apotek Hjärtat</div>
+        </div>
+      </div>
+      <div class="p2-card">
+        <div class="p2-card-badge">🌸</div>
+        <div>
+          <div class="p2-card-title">Terapisamtal</div>
+          <div class="p2-card-meta">Måndag · 14:00</div>
+        </div>
+      </div>
+    </div>
+    <button class="p2-add">+ Nytt besök</button>
+    <div class="swatch-row">
+      <span class="swatch-label"><span class="swatch" style="background:#8b5e9e"></span> Lavendel</span>
+      <span class="swatch-label"><span class="swatch" style="background:#d4a5d8"></span> Ros</span>
+      <span class="swatch-label"><span class="swatch" style="background:#fdf5ff"></span> Krämvit</span>
+    </div>
+    <div class="proposal-label">B · Mjuk blomma</div>
+  </div>
+
+  <!-- PROPOSAL 3 -->
+  <div class="proposal">
+    <div class="p3-header">
+      <div class="p3-logo">🌿</div>
+      <div class="p3-name">VårdNära</div>
+      <div class="p3-tagline">Trygghet, dag för dag</div>
+    </div>
+    <div class="p3-nav">
+      <span class="p3-tab active">Kalender</span>
+      <span class="p3-tab">Dagbok</span>
+      <span class="p3-tab">Uppgifter</span>
+    </div>
+    <div class="p3-body">
+      <div class="p3-day">Imorgon</div>
+      <div class="p3-card">
+        <div class="p3-dot"></div>
+        <div class="p3-card-title">Läkarbesök</div>
+        <div class="p3-card-time">10:30</div>
+      </div>
+      <div class="p3-day">Fredag</div>
+      <div class="p3-card">
+        <div class="p3-dot orange"></div>
+        <div class="p3-card-title">Hämta medicin</div>
+        <div class="p3-card-time">13:00</div>
+      </div>
+      <div class="p3-card">
+        <div class="p3-dot"></div>
+        <div class="p3-card-title">Terapisamtal</div>
+        <div class="p3-card-time">14:00</div>
+      </div>
+    </div>
+    <div class="p3-fab"><button>+ Lägg till</button></div>
+    <div class="swatch-row">
+      <span class="swatch-label"><span class="swatch" style="background:#2d6a4f"></span> Djupgrön</span>
+      <span class="swatch-label"><span class="swatch" style="background:#52b788"></span> Mint</span>
+      <span class="swatch-label"><span class="swatch" style="background:#f2faf6"></span> Ljusmint</span>
+    </div>
+    <div class="proposal-label">C · Lugn natur</div>
+  </div>
+
+  <!-- PROPOSAL 4 -->
+  <div class="proposal">
+    <div class="p4-header">
+      <div class="p4-logo">☀️</div>
+      <div class="p4-name">VårdNära</div>
+      <div class="p4-tagline">Tillsammans gör vi skillnad</div>
+    </div>
+    <div class="p4-stats">
+      <div class="p4-stat"><div class="p4-stat-num">3</div><div class="p4-stat-label">Besök den här veckan</div></div>
+      <div class="p4-stat"><div class="p4-stat-num">5</div><div class="p4-stat-label">Öppna uppgifter</div></div>
+      <div class="p4-stat"><div class="p4-stat-num">12</div><div class="p4-stat-label">Dagboksinlägg</div></div>
+    </div>
+    <div class="p4-body">
+      <div class="p4-section">Kommande</div>
+      <div class="p4-card">
+        <div class="p4-icon">🩺</div>
+        <div>
+          <div class="p4-card-title">Läkarbesök, Vårdcentral</div>
+          <div class="p4-card-meta">Imorgon · 10:30</div>
+        </div>
+      </div>
+      <div class="p4-card">
+        <div class="p4-icon">💊</div>
+        <div>
+          <div class="p4-card-title">Hämta medicin</div>
+          <div class="p4-card-meta">Fredag · Apotek Hjärtat</div>
+        </div>
+      </div>
+    </div>
+    <div class="swatch-row">
+      <span class="swatch-label"><span class="swatch" style="background:#b58a1a"></span> Guld</span>
+      <span class="swatch-label"><span class="swatch" style="background:#e8b84b"></span> Sol</span>
+      <span class="swatch-label"><span class="swatch" style="background:#fffbf0"></span> Honungsbeige</span>
+    </div>
+    <div class="proposal-label">D · Varm sol</div>
+  </div>
+
+</div>
+</body>
+</html>

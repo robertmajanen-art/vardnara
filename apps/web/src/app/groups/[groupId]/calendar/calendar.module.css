@@ -155,6 +155,17 @@
   text-overflow: ellipsis;
 }
 
+.aptPast {
+  opacity: 0.42;
+  filter: grayscale(0.65);
+}
+
+.aptRecurringBadge {
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+  margin-top: 0.2rem;
+}
+
 @media (max-width: 768px) {
   .page {
     padding: 1rem 0.75rem 0;

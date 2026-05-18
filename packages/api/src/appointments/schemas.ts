@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 const AppointmentType = z.enum(['HEALTHCARE', 'SCHOOL', 'SOCIAL', 'THERAPY', 'FAMILY', 'OTHER'])
+const RecurrenceEnum = z.enum(['NONE', 'DAILY', 'WEEKLY', 'MONTHLY', 'CUSTOM'])
 
 export const CreateAppointmentBody = z.object({
   type: AppointmentType,
@@ -11,6 +12,8 @@ export const CreateAppointmentBody = z.object({
   endTime: z.string().datetime({ offset: true }).optional(),
   assigneeId: z.string().uuid().optional(),
   reminderMinutes: z.array(z.number().int().positive()).max(5).optional(),
+  recurrence: RecurrenceEnum.default('NONE'),
+  recurrenceCron: z.string().max(120).optional(),
 })
 
 export const UpdateAppointmentBody = z.object({
@@ -20,6 +23,8 @@ export const UpdateAppointmentBody = z.object({
   notes: z.string().max(2000).nullable().optional(),
   startTime: z.string().datetime({ offset: true }).optional(),
   endTime: z.string().datetime({ offset: true }).nullable().optional(),
+  recurrence: RecurrenceEnum.optional(),
+  recurrenceCron: z.string().max(120).nullable().optional(),
 })
 
 export const AssignAppointmentBody = z.object({

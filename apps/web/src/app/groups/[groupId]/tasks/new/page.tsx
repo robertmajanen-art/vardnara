@@ -18,13 +18,14 @@ const WEEK_DAYS = [
   { label: 'Sön', cron: 0 },
 ]
 
-type RecType = 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY'
+type RecType = 'NONE' | 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY'
 type EndType = 'never' | 'on' | 'after'
 
 function buildCron(type: RecType, h: string, m: string, days: number[], monthDay: number): string {
-  if (type === 'DAILY')   return `${m} ${h} * * *`
-  if (type === 'WEEKLY')  return `${m} ${h} * * ${[...days].sort().join(',')}`
-  if (type === 'MONTHLY') return `${m} ${h} ${monthDay} * *`
+  if (type === 'DAILY')    return `${m} ${h} * * *`
+  if (type === 'WEEKLY')   return `${m} ${h} * * ${[...days].sort().join(',')}`
+  if (type === 'BIWEEKLY') return `BIWEEKLY ${m} ${h} * * ${[...days].sort().join(',') || '1'}`
+  if (type === 'MONTHLY')  return `${m} ${h} ${monthDay} * *`
   return ''
 }
 
@@ -79,7 +80,7 @@ export default function NewTaskPage({ params }: { params: { groupId: string } })
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    if (recType === 'WEEKLY' && selectedDays.size === 0) {
+    if ((recType === 'WEEKLY' || recType === 'BIWEEKLY') && selectedDays.size === 0) {
       setError('Välj minst en dag för veckovis återkommande.')
       return
     }
@@ -91,12 +92,14 @@ export default function NewTaskPage({ params }: { params: { groupId: string } })
       const cron = recType !== 'NONE'
         ? buildCron(recType, hour, minute, [...selectedDays], monthDay)
         : undefined
+      // BIWEEKLY is stored as CUSTOM recurrence with special cron prefix
+      const recurrence = recType === 'BIWEEKLY' ? 'CUSTOM' : recType
 
       await api.post(`/api/groups/${params.groupId}/tasks`, {
         title,
         ...(description ? { description } : {}),
         dueDate: dueDateISO,
-        recurrence: recType,
+        recurrence,
         ...(cron ? { recurrenceCron: cron } : {}),
       })
       router.push(`/groups/${params.groupId}/tasks` as never)
@@ -176,7 +179,7 @@ export default function NewTaskPage({ params }: { params: { groupId: string } })
           <div className={styles.sectionTitle}>Återkommande mönster</div>
 
           <div className={styles.radioGroup}>
-            {(['NONE', 'DAILY', 'WEEKLY', 'MONTHLY'] as const).map((type) => (
+            {(['NONE', 'DAILY', 'WEEKLY', 'BIWEEKLY', 'MONTHLY'] as const).map((type) => (
               <label key={type} className={styles.radioRow}>
                 <input
                   type="radio"
@@ -186,10 +189,14 @@ export default function NewTaskPage({ params }: { params: { groupId: string } })
                   onChange={() => setRecType(type)}
                 />
                 <span className={styles.radioLabel}>
-                  {type === 'NONE' ? 'Aldrig' : type === 'DAILY' ? 'Dagligen' : type === 'WEEKLY' ? 'Veckovis' : 'Månadsvis'}
+                  {type === 'NONE' ? 'Aldrig'
+                    : type === 'DAILY' ? 'Dagligen'
+                    : type === 'WEEKLY' ? 'Varje vecka'
+                    : type === 'BIWEEKLY' ? 'Varannan vecka'
+                    : 'Månadsvis'}
                 </span>
 
-                {recType === type && type === 'WEEKLY' && (
+                {recType === type && (type === 'WEEKLY' || type === 'BIWEEKLY') && (
                   <div className={styles.dayGrid}>
                     {WEEK_DAYS.map(({ label, cron }) => (
                       <button

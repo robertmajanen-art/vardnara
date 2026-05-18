@@ -29,10 +29,22 @@ export const appointmentRoutes: FastifyPluginAsync = async (fastify) => {
         where: {
           groupId: req.params.groupId,
           ...(from || to ? {
-            startTime: {
-              ...(from ? { gte: new Date(from) } : {}),
-              ...(to ? { lte: new Date(to) } : {}),
-            },
+            OR: [
+              // Non-recurring: filter by date range as before
+              {
+                recurrence: 'NONE',
+                startTime: {
+                  ...(from ? { gte: new Date(from) } : {}),
+                  ...(to ? { lte: new Date(to) } : {}),
+                },
+              },
+              // Recurring: return all that started on or before `to`
+              // so the frontend can project future occurrences
+              {
+                NOT: { recurrence: 'NONE' },
+                ...(to ? { startTime: { lte: new Date(to) } } : {}),
+              },
+            ],
           } : {}),
         },
         include: {

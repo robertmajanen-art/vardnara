@@ -80,6 +80,8 @@ export type Appointment = {
   notes?: string | null
   startTime: string
   endTime?: string | null
+  recurrence?: string | null
+  recurrenceCron?: string | null
   assigneeId?: string | null
   assignee?: { id: string; email: string } | null
   assigneeAccepted?: boolean | null

@@ -15,6 +15,19 @@ const DAY_MAP: Record<number, string> = {
 function formatRecurrence(task: Task): string | null {
   if (!task.recurrence || task.recurrence === 'NONE') return null
   const cron = task.recurrenceCron ?? ''
+
+  // Bi-weekly: CUSTOM recurrence with "BIWEEKLY " prefix
+  if (task.recurrence === 'CUSTOM' && cron.startsWith('BIWEEKLY ')) {
+    const actualCron = cron.slice('BIWEEKLY '.length)
+    const parts = actualCron.split(' ')
+    const mm = parts[0] ?? '00'
+    const HH = parts[1] ?? '00'
+    const timeStr = ` kl ${HH.padStart(2, '0')}:${mm.padStart(2, '0')}`
+    const dayPart = parts[4] ?? ''
+    const days = dayPart ? dayPart.split(',').map((d) => DAY_MAP[Number(d)] ?? d).join(', ') : ''
+    return `🔄 Varannan vecka${days ? ': ' + days : ''}${timeStr}`
+  }
+
   const parts = cron.split(' ')
   const mm = parts[0] ?? '00'
   const HH = parts[1] ?? '00'
@@ -28,6 +41,65 @@ function formatRecurrence(task: Task): string | null {
   }
   if (task.recurrence === 'MONTHLY') return `🔄 Månadsvis dag ${parts[2]}${timeStr}`
   return `🔄 ${task.recurrence}`
+}
+
+// ── Recurring task helpers ────────────────────────────────────────────────────
+
+function taskScheduledHourMinute(task: Task): { h: number; m: number } {
+  if (task.recurrenceCron) {
+    const cron = task.recurrenceCron.startsWith('BIWEEKLY ')
+      ? task.recurrenceCron.slice('BIWEEKLY '.length)
+      : task.recurrenceCron
+    const parts = cron.split(' ')
+    return { m: Number(parts[0] ?? 0), h: Number(parts[1] ?? 0) }
+  }
+  if (task.dueDate) {
+    const d = new Date(task.dueDate)
+    return { h: d.getHours(), m: d.getMinutes() }
+  }
+  return { h: 9, m: 0 }
+}
+
+function taskOccursOnDate(task: Task, viewDate: Date): boolean {
+  if (!task.dueDate) return false
+  const startDate = new Date(task.dueDate)
+  const viewDay = new Date(viewDate); viewDay.setHours(0, 0, 0, 0)
+  const startDay = new Date(startDate); startDay.setHours(0, 0, 0, 0)
+
+  if (!task.recurrence || task.recurrence === 'NONE') {
+    return dateKey(startDate) === dateKey(viewDate)
+  }
+
+  if (viewDay < startDay) return false
+
+  if (task.recurrence === 'DAILY') return true
+
+  const cron = task.recurrenceCron ?? ''
+  const isActuallyBiweekly = task.recurrence === 'CUSTOM' && cron.startsWith('BIWEEKLY ')
+  const actualCron = isActuallyBiweekly ? cron.slice('BIWEEKLY '.length) : cron
+  const parts = actualCron.split(' ')
+
+  if (task.recurrence === 'WEEKLY') {
+    const dayPart = parts[4] ?? '*'
+    if (dayPart === '*') return true
+    return dayPart.split(',').map(Number).includes(viewDate.getDay())
+  }
+
+  if (isActuallyBiweekly) {
+    const dayPart = parts[4] ?? '*'
+    const days = dayPart !== '*' ? dayPart.split(',').map(Number) : [0, 1, 2, 3, 4, 5, 6]
+    if (!days.includes(viewDate.getDay())) return false
+    const msPerWeek = 7 * 24 * 60 * 60 * 1000
+    const weekDiff = Math.round((viewDay.getTime() - startDay.getTime()) / msPerWeek)
+    return weekDiff % 2 === 0
+  }
+
+  if (task.recurrence === 'MONTHLY') {
+    const dayOfMonth = parts[2] && parts[2] !== '*' ? Number(parts[2]) : startDate.getDate()
+    return viewDate.getDate() === dayOfMonth
+  }
+
+  return false
 }
 
 function isActive(task: Task): boolean {
@@ -47,11 +119,8 @@ const CARD_GAP = 5
 const LEFT_X = CX - R - 30
 const RIGHT_X = CX + R + 30
 
-function taskAngle(dueDate: string): number {
-  const d = new Date(dueDate)
-  const h = d.getHours() % 12
-  const m = d.getMinutes()
-  return ((h + m / 60) / 12) * Math.PI * 2
+function taskAngle(h: number, m: number): number {
+  return (((h % 12) + m / 60) / 12) * Math.PI * 2
 }
 
 function clockEdge(θ: number): [number, number] {
@@ -120,11 +189,11 @@ function ClockView({ tasks, groupId }: { tasks: Task[]; groupId: string }) {
     })
   }
 
-  const viewKey = dateKey(viewDate)
   const dayTasks = tasks
-    .filter(t => t.dueDate && dateKey(new Date(t.dueDate)) === viewKey)
+    .filter(t => taskOccursOnDate(t, viewDate))
     .map(t => {
-      const θ = taskAngle(t.dueDate!)
+      const { h, m } = taskScheduledHourMinute(t)
+      const θ = taskAngle(h, m)
       const [px, py] = clockEdge(θ)
       return { task: t, θ, px, py }
     })
@@ -277,7 +346,7 @@ export default function TasksPage({ params }: { params: { groupId: string } }) {
   const filters = [
     { value: '' as const, label: 'Alla' },
     { value: 'active' as const, label: 'Aktiv' },
-    { value: 'inactive' as const, label: 'Inaktiv' },
+    { value: 'inactive' as const, label: 'Utförd' },
   ]
 
   return (
@@ -316,7 +385,7 @@ export default function TasksPage({ params }: { params: { groupId: string } }) {
                       <div className={styles.itemTitle}>{task.title}</div>
                       <div className={styles.itemMeta}>
                         <span className={`${styles.statusBadge} ${active ? styles.status_OPEN : styles.status_DONE}`}>
-                          {active ? 'Aktiv' : 'Inaktiv'}
+                          {active ? 'Aktiv' : 'Utförd'}
                         </span>
                         {task.dueDate && (
                           <span className={styles.dueDate}>{formatRelativeDate(new Date(task.dueDate))}</span>
