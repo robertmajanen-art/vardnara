@@ -212,8 +212,12 @@ function formatViewLabel(d: Date): string {
   return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`
 }
 
-function ClockView({ tasks, groupId }: { tasks: Task[]; groupId: string }) {
-  const [viewDate, setViewDate] = useState(() => new Date())
+function ClockView({ tasks, groupId, viewDate, onShiftDay }: {
+  tasks: Task[]
+  groupId: string
+  viewDate: Date
+  onShiftDay: (delta: number) => void
+}) {
   const [now, setNow] = useState<Date | null>(null)
 
   useEffect(() => {
@@ -223,14 +227,6 @@ function ClockView({ tasks, groupId }: { tasks: Task[]; groupId: string }) {
   }, [])
 
   const isToday = dateKey(viewDate) === dateKey(new Date())
-
-  function shiftDay(delta: number) {
-    setViewDate(prev => {
-      const next = new Date(prev)
-      next.setDate(next.getDate() + delta)
-      return next
-    })
-  }
 
   const dayTasks = tasks
     .filter(t => taskOccursOnDate(t, viewDate))
@@ -255,9 +251,9 @@ function ClockView({ tasks, groupId }: { tasks: Task[]; groupId: string }) {
   return (
     <div>
       <div className={styles.clockNav}>
-        <button className={styles.clockNavBtn} onClick={() => shiftDay(-1)}>←</button>
+        <button className={styles.clockNavBtn} onClick={() => onShiftDay(-1)}>←</button>
         <span className={styles.clockNavLabel}>{formatViewLabel(viewDate)}</span>
-        <button className={styles.clockNavBtn} onClick={() => shiftDay(1)}>→</button>
+        <button className={styles.clockNavBtn} onClick={() => onShiftDay(1)}>→</button>
       </div>
 
       <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} width="100%" overflow="visible" aria-label="Uppgifter">
@@ -351,6 +347,11 @@ export default function TasksPage({ params }: { params: { groupId: string } }) {
   const [activeFilter, setActiveFilter] = useState<'' | 'active' | 'inactive'>('')
   const [completing, setCompleting] = useState<string | null>(null)
   const [deleteDialog, setDeleteDialog] = useState<{ taskId: string; skipDate: string } | null>(null)
+  const [viewDate, setViewDate] = useState(() => new Date())
+
+  function shiftDay(delta: number) {
+    setViewDate(prev => { const next = new Date(prev); next.setDate(next.getDate() + delta); return next })
+  }
 
   useEffect(() => {
     api
@@ -382,7 +383,11 @@ export default function TasksPage({ params }: { params: { groupId: string } }) {
       void deleteAll(task.id)
       return
     }
-    const skipDate = nextOccurrenceDate(task, new Date()) ?? dateKey(new Date())
+    // If the task occurs on the currently displayed clock date, skip that date.
+    // Otherwise fall back to the next occurrence from today.
+    const skipDate = taskOccursOnDate(task, viewDate)
+      ? dateKey(viewDate)
+      : (nextOccurrenceDate(task, new Date()) ?? dateKey(new Date()))
     setDeleteDialog({ taskId: task.id, skipDate })
   }
 
@@ -421,7 +426,7 @@ export default function TasksPage({ params }: { params: { groupId: string } }) {
           <div className={styles.dialog} onClick={e => e.stopPropagation()}>
             <p className={styles.dialogTitle}>Ta bort återkommande uppgift</p>
             <p className={styles.dialogText}>
-              Vill du hoppa över nästa tillfälle ({deleteDialog.skipDate}) eller ta bort hela serien?
+              Vill du hoppa över tillfället {deleteDialog.skipDate} eller ta bort hela serien?
             </p>
             <div className={styles.dialogBtns}>
               <button className={`${styles.dialogBtn} ${styles.dialogBtnSkip}`}
@@ -517,7 +522,7 @@ export default function TasksPage({ params }: { params: { groupId: string } }) {
 
         {/* ── Clock view ── */}
         <div className={styles.clockSection}>
-          <ClockView tasks={allTasks} groupId={params.groupId} />
+          <ClockView tasks={allTasks} groupId={params.groupId} viewDate={viewDate} onShiftDay={shiftDay} />
         </div>
       </div>
     </div>
