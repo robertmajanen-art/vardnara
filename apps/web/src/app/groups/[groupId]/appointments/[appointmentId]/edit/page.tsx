@@ -21,6 +21,7 @@ const WEEK_DAYS = [
 ]
 
 type RecType = 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY'
+type EndType = 'never' | 'on' | 'after'
 
 type ExistingAppointment = {
   type: string
@@ -73,14 +74,18 @@ function addMinsLocal(localDt: string, mins: number): string {
   return localStr(new Date(y, mo - 1, d, h, mi + mins))
 }
 
-function parseCron(cron: string): { mm: string; HH: string; monthDay: number; weekDays: Set<number>; weeklyInterval: number } {
-  let actualCron = cron
+function parseCron(cron: string): { mm: string; HH: string; monthDay: number; weekDays: Set<number>; weeklyInterval: number; untilDate: string | null } {
+  const untilMatch = cron.match(/ UNTIL:(\d{4}-\d{2}-\d{2})$/)
+  const untilDate = untilMatch ? untilMatch[1] : null
+  const base = untilDate ? cron.slice(0, cron.length - untilMatch![0].length) : cron
+
+  let actualCron = base
   let weeklyInterval = 1
-  if (cron.startsWith('BIWEEKLY ')) {
-    actualCron = cron.slice('BIWEEKLY '.length)
+  if (base.startsWith('BIWEEKLY ')) {
+    actualCron = base.slice('BIWEEKLY '.length)
     weeklyInterval = 2
   } else {
-    const match = cron.match(/^WEEKLY_(\d+) (.+)$/)
+    const match = base.match(/^WEEKLY_(\d+) (.+)$/)
     if (match) { weeklyInterval = Number(match[1]); actualCron = match[2] }
   }
   const p = actualCron.split(' ')
@@ -90,18 +95,47 @@ function parseCron(cron: string): { mm: string; HH: string; monthDay: number; we
     monthDay: p[2] && p[2] !== '*' ? Number(p[2]) : 1,
     weekDays: p[4] && p[4] !== '*' ? new Set(p[4].split(',').map(Number)) : new Set<number>(),
     weeklyInterval,
+    untilDate,
   }
 }
 
-function buildRecCron(type: RecType, days: number[], monthDay: number, h: string, m: string, weeklyInterval: number): string {
-  if (type === 'DAILY')   return `${m} ${h} * * *`
+function buildRecCron(type: RecType, days: number[], monthDay: number, h: string, m: string, weeklyInterval: number, untilDate?: string): string {
+  const suffix = untilDate ? ` UNTIL:${untilDate}` : ''
+  if (type === 'DAILY')   return `${m} ${h} * * *${suffix}`
   if (type === 'WEEKLY') {
     const dayCron = [...days].sort().join(',')
-    if (weeklyInterval > 1) return `WEEKLY_${weeklyInterval} ${m} ${h} * * ${dayCron}`
-    return `${m} ${h} * * ${dayCron}`
+    if (weeklyInterval > 1) return `WEEKLY_${weeklyInterval} ${m} ${h} * * ${dayCron}${suffix}`
+    return `${m} ${h} * * ${dayCron}${suffix}`
   }
-  if (type === 'MONTHLY') return `${m} ${h} ${monthDay} * *`
+  if (type === 'MONTHLY') return `${m} ${h} ${monthDay} * *${suffix}`
   return ''
+}
+
+function nthOccurrenceDate(recType: RecType, days: Set<number>, monthDay: number, weeklyInterval: number, startDate: Date, n: number): string | null {
+  if (n <= 0) return null
+  let count = 0
+  const cursor = new Date(startDate); cursor.setHours(0, 0, 0, 0)
+  const anchorDay = new Date(cursor)
+  for (let i = 0; i < 1500; i++) {
+    let occurs = false
+    if (recType === 'DAILY') {
+      occurs = true
+    } else if (recType === 'WEEKLY') {
+      if (days.has(cursor.getDay())) {
+        const msPerWeek = 7 * 24 * 60 * 60 * 1000
+        const wDiff = Math.round((cursor.getTime() - anchorDay.getTime()) / msPerWeek)
+        occurs = wDiff % weeklyInterval === 0
+      }
+    } else if (recType === 'MONTHLY') {
+      occurs = cursor.getDate() === monthDay
+    }
+    if (occurs && ++count === n) {
+      const p = (x: number) => String(x).padStart(2, '0')
+      return `${cursor.getFullYear()}-${p(cursor.getMonth() + 1)}-${p(cursor.getDate())}`
+    }
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return null
 }
 
 export default function EditAppointmentPage({ params }: { params: { groupId: string; appointmentId: string } }) {
@@ -116,6 +150,9 @@ export default function EditAppointmentPage({ params }: { params: { groupId: str
   const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set())
   const [weeklyInterval, setWeeklyInterval] = useState(1)
   const [monthDay, setMonthDay]   = useState(1)
+  const [endType, setEndType]     = useState<EndType>('never')
+  const [endDate, setEndDate]     = useState('')
+  const [endAfter, setEndAfter]   = useState(10)
   const [loading, setLoading]     = useState(true)
   const [saving, setSaving]       = useState(false)
   const [error, setError]         = useState('')
@@ -135,10 +172,14 @@ export default function EditAppointmentPage({ params }: { params: { groupId: str
         setRecType(isWeeklyInterval ? 'WEEKLY' : (apt.recurrence as RecType) ?? 'NONE')
 
         if (apt.recurrenceCron) {
-          const { mm, HH, monthDay: md, weekDays, weeklyInterval: wi } = parseCron(apt.recurrenceCron)
+          const { mm, HH, monthDay: md, weekDays, weeklyInterval: wi, untilDate } = parseCron(apt.recurrenceCron)
           setMonthDay(md)
           setSelectedDays(weekDays)
           setWeeklyInterval(wi)
+          if (untilDate) {
+            setEndType('on')
+            setEndDate(untilDate)
+          }
           // Adjust startTime hour/minute from cron for clarity
           if (apt.recurrence && apt.recurrence !== 'NONE') {
             const { date } = splitDt(localStr(new Date(apt.startTime)))
@@ -170,8 +211,19 @@ export default function EditAppointmentPage({ params }: { params: { groupId: str
     setSaving(true)
     try {
       const { hour, minute } = splitDt(startTime)
+
+      let untilDate: string | undefined
+      if (recType !== 'NONE') {
+        if (endType === 'on' && endDate) {
+          untilDate = endDate
+        } else if (endType === 'after' && endAfter > 0) {
+          const start = new Date(startTime)
+          untilDate = nthOccurrenceDate(recType, selectedDays, monthDay, weeklyInterval, start, endAfter) ?? undefined
+        }
+      }
+
       const cron = recType !== 'NONE'
-        ? buildRecCron(recType, [...selectedDays], monthDay, hour, minute, weeklyInterval)
+        ? buildRecCron(recType, [...selectedDays], monthDay, hour, minute, weeklyInterval, untilDate)
         : null
       const recurrence = (recType === 'WEEKLY' && weeklyInterval > 1) ? 'CUSTOM' : recType
 
@@ -281,6 +333,36 @@ export default function EditAppointmentPage({ params }: { params: { groupId: str
             ))}
           </div>
         </div>
+
+        {recType !== 'NONE' && (
+          <div className={recStyles.section}>
+            <div className={recStyles.sectionTitle}>Slutdatum för återkommande</div>
+            <div className={recStyles.radioGroup}>
+              <label className={recStyles.radioRow}>
+                <input type="radio" name="endType" value="never" checked={endType === 'never'} onChange={() => setEndType('never')} />
+                <span className={recStyles.radioLabel}>Inget slutdatum</span>
+              </label>
+              <label className={recStyles.radioRow}>
+                <input type="radio" name="endType" value="on" checked={endType === 'on'} onChange={() => setEndType('on')} />
+                <span className={recStyles.radioLabel}>Slutar</span>
+                {endType === 'on' && (
+                  <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={recStyles.inputSm} />
+                )}
+              </label>
+              <label className={recStyles.radioRow}>
+                <input type="radio" name="endType" value="after" checked={endType === 'after'} onChange={() => setEndType('after')} />
+                <span className={recStyles.radioLabel}>Slutar efter</span>
+                {endType === 'after' && (
+                  <>
+                    <input type="number" min={1} max={999} value={endAfter}
+                      onChange={e => setEndAfter(Number(e.target.value))} className={recStyles.numInput} />
+                    <span style={{ fontSize: '0.875rem' }}>tillfällen</span>
+                  </>
+                )}
+              </label>
+            </div>
+          </div>
+        )}
 
         {error && <p style={{ color: 'var(--color-error)', fontSize: '0.875rem' }}>{error}</p>}
 

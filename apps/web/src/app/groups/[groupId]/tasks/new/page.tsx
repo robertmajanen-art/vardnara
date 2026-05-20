@@ -21,15 +21,48 @@ const WEEK_DAYS = [
 type RecType = 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY'
 type EndType = 'never' | 'on' | 'after'
 
-function buildCron(type: RecType, h: string, m: string, days: number[], monthDay: number, weeklyInterval: number): string {
-  if (type === 'DAILY')   return `${m} ${h} * * *`
+function buildCron(type: RecType, h: string, m: string, days: number[], monthDay: number, weeklyInterval: number, untilDate?: string): string {
+  const suffix = untilDate ? ` UNTIL:${untilDate}` : ''
+  if (type === 'DAILY')   return `${m} ${h} * * *${suffix}`
   if (type === 'WEEKLY') {
     const dayCron = [...days].sort().join(',')
-    if (weeklyInterval > 1) return `WEEKLY_${weeklyInterval} ${m} ${h} * * ${dayCron}`
-    return `${m} ${h} * * ${dayCron}`
+    if (weeklyInterval > 1) return `WEEKLY_${weeklyInterval} ${m} ${h} * * ${dayCron}${suffix}`
+    return `${m} ${h} * * ${dayCron}${suffix}`
   }
-  if (type === 'MONTHLY') return `${m} ${h} ${monthDay} * *`
+  if (type === 'MONTHLY') return `${m} ${h} ${monthDay} * *${suffix}`
   return ''
+}
+
+/** Compute the date of the Nth future occurrence, for "ends after N" option. */
+function nthOccurrenceDate(recType: RecType, days: Set<number>, monthDay: number, weeklyInterval: number, startDate: Date, n: number): string | null {
+  if (n <= 0) return null
+  let count = 0
+  const cursor = new Date(startDate); cursor.setHours(0, 0, 0, 0)
+  const anchorDay = new Date(cursor)
+  const MAX = 1500 // safety cap
+  for (let i = 0; i < MAX; i++) {
+    let occurs = false
+    if (recType === 'DAILY') {
+      occurs = true
+    } else if (recType === 'WEEKLY') {
+      if (days.has(cursor.getDay())) {
+        const msPerWeek = 7 * 24 * 60 * 60 * 1000
+        const wDiff = Math.round((cursor.getTime() - anchorDay.getTime()) / msPerWeek)
+        occurs = wDiff % weeklyInterval === 0
+      }
+    } else if (recType === 'MONTHLY') {
+      occurs = cursor.getDate() === monthDay
+    }
+    if (occurs) {
+      count++
+      if (count === n) {
+        const p = (x: number) => String(x).padStart(2, '0')
+        return `${cursor.getFullYear()}-${p(cursor.getMonth() + 1)}-${p(cursor.getDate())}`
+      }
+    }
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return null
 }
 
 function todayDate(): string {
@@ -93,8 +126,20 @@ export default function NewTaskPage({ params }: { params: { groupId: string } })
       const dueDateISO = recType === 'NONE'
         ? dateTimeISO(dueDate, hour, minute)
         : dateTimeISO(startDate, hour, minute)
+
+      // Compute effective end date
+      let untilDate: string | undefined
+      if (recType !== 'NONE') {
+        if (endType === 'on' && endDate) {
+          untilDate = endDate
+        } else if (endType === 'after' && endAfter > 0) {
+          const start = new Date(dueDateISO)
+          untilDate = nthOccurrenceDate(recType, selectedDays, monthDay, weeklyInterval, start, endAfter) ?? undefined
+        }
+      }
+
       const cron = recType !== 'NONE'
-        ? buildCron(recType, hour, minute, [...selectedDays], monthDay, weeklyInterval)
+        ? buildCron(recType, hour, minute, [...selectedDays], monthDay, weeklyInterval, untilDate)
         : undefined
       // WEEKLY with interval>1 is stored as CUSTOM recurrence with WEEKLY_N cron prefix
       const recurrence = (recType === 'WEEKLY' && weeklyInterval > 1) ? 'CUSTOM' : recType

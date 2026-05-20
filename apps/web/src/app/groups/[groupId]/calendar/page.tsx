@@ -58,13 +58,18 @@ function projectAppointments(appointments: Appointment[], from: Date, to: Date):
 
     const cron = apt.recurrenceCron ?? ''
 
+    // Extract UNTIL end date
+    const untilMatch = cron.match(/ UNTIL:(\d{4}-\d{2}-\d{2})$/)
+    const untilDate = untilMatch ? new Date(untilMatch[1] + 'T23:59:59') : null
+    const cronBase = untilDate ? cron.slice(0, cron.length - untilMatch![0].length) : cron
+
     // Parse weekly interval prefix (BIWEEKLY or WEEKLY_N)
     let weeklyInterval = 1
-    let actualCron = cron
-    if (cron.startsWith('BIWEEKLY ')) {
-      weeklyInterval = 2; actualCron = cron.slice('BIWEEKLY '.length)
+    let actualCron = cronBase
+    if (cronBase.startsWith('BIWEEKLY ')) {
+      weeklyInterval = 2; actualCron = cronBase.slice('BIWEEKLY '.length)
     } else {
-      const wm = cron.match(/^WEEKLY_(\d+) (.+)$/)
+      const wm = cronBase.match(/^WEEKLY_(\d+) (.+)$/)
       if (wm) { weeklyInterval = Number(wm[1]); actualCron = wm[2] }
     }
     const isIntervalWeekly = rec === 'CUSTOM' && weeklyInterval > 1
@@ -73,11 +78,12 @@ function projectAppointments(appointments: Appointment[], from: Date, to: Date):
     const cronMm = Number(parts[0] ?? 0)
     const cronHH = Number(parts[1] ?? 0)
 
-    // Start from max(from, startDate), iterate day by day
+    // Start from max(from, startDate), iterate day by day; end at min(to, untilDate)
     const anchorDay = new Date(startDate); anchorDay.setHours(0, 0, 0, 0)
     const cursor = new Date(Math.max(from.getTime(), startDate.getTime()))
     cursor.setHours(0, 0, 0, 0)
-    const end = new Date(to); end.setHours(23, 59, 59, 999)
+    const toEnd = new Date(to); toEnd.setHours(23, 59, 59, 999)
+    const end = untilDate && untilDate < toEnd ? untilDate : toEnd
 
     while (cursor <= end) {
       let shouldInclude = false

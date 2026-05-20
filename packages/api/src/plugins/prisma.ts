@@ -8,9 +8,34 @@ declare module 'fastify' {
   }
 }
 
+/** Run any schema changes not yet present in the DB (idempotent). */
+async function applyPendingMigrations(prisma: PrismaClient) {
+  try {
+    // 20260518000001_appointment_recurrence — add recurrence columns to Appointment
+    const rows = await prisma.$queryRaw<{ column_name: string }[]>`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'Appointment'
+        AND column_name = 'recurrence'
+    `
+    if (rows.length === 0) {
+      console.log('[prisma] Applying migration: 20260518000001_appointment_recurrence')
+      await prisma.$executeRaw`
+        ALTER TABLE "Appointment"
+          ADD COLUMN IF NOT EXISTS "recurrence" "RecurrencePattern" NOT NULL DEFAULT 'NONE',
+          ADD COLUMN IF NOT EXISTS "recurrenceCron" TEXT
+      `
+      console.log('[prisma] Migration applied.')
+    }
+  } catch (err) {
+    console.error('[prisma] Migration error (non-fatal):', err)
+  }
+}
+
 const prismaPlugin: FastifyPluginAsync = async (fastify) => {
   const prisma = new PrismaClient({ log: ['error', 'warn'] })
   await prisma.$connect()
+  await applyPendingMigrations(prisma)
   fastify.decorate('prisma', prisma)
   fastify.addHook('onClose', async () => prisma.$disconnect())
 }

@@ -14,6 +14,7 @@ const WEEK_DAYS = [
 ]
 
 type RecType = 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY'
+type EndType = 'never' | 'on' | 'after'
 
 type ExistingTask = {
   title: string
@@ -23,15 +24,43 @@ type ExistingTask = {
   recurrenceCron?: string | null
 }
 
-function buildCron(type: RecType, h: string, m: string, days: number[], monthDay: number, weeklyInterval: number): string {
-  if (type === 'DAILY')   return `${m} ${h} * * *`
+function buildCron(type: RecType, h: string, m: string, days: number[], monthDay: number, weeklyInterval: number, untilDate?: string): string {
+  const suffix = untilDate ? ` UNTIL:${untilDate}` : ''
+  if (type === 'DAILY')   return `${m} ${h} * * *${suffix}`
   if (type === 'WEEKLY') {
     const dayCron = [...days].sort().join(',')
-    if (weeklyInterval > 1) return `WEEKLY_${weeklyInterval} ${m} ${h} * * ${dayCron}`
-    return `${m} ${h} * * ${dayCron}`
+    if (weeklyInterval > 1) return `WEEKLY_${weeklyInterval} ${m} ${h} * * ${dayCron}${suffix}`
+    return `${m} ${h} * * ${dayCron}${suffix}`
   }
-  if (type === 'MONTHLY') return `${m} ${h} ${monthDay} * *`
+  if (type === 'MONTHLY') return `${m} ${h} ${monthDay} * *${suffix}`
   return ''
+}
+
+function nthOccurrenceDate(recType: RecType, days: Set<number>, monthDay: number, weeklyInterval: number, startDate: Date, n: number): string | null {
+  if (n <= 0) return null
+  let count = 0
+  const cursor = new Date(startDate); cursor.setHours(0, 0, 0, 0)
+  const anchorDay = new Date(cursor)
+  for (let i = 0; i < 1500; i++) {
+    let occurs = false
+    if (recType === 'DAILY') {
+      occurs = true
+    } else if (recType === 'WEEKLY') {
+      if (days.has(cursor.getDay())) {
+        const msPerWeek = 7 * 24 * 60 * 60 * 1000
+        const wDiff = Math.round((cursor.getTime() - anchorDay.getTime()) / msPerWeek)
+        occurs = wDiff % weeklyInterval === 0
+      }
+    } else if (recType === 'MONTHLY') {
+      occurs = cursor.getDate() === monthDay
+    }
+    if (occurs && ++count === n) {
+      const p = (x: number) => String(x).padStart(2, '0')
+      return `${cursor.getFullYear()}-${p(cursor.getMonth() + 1)}-${p(cursor.getDate())}`
+    }
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return null
 }
 
 function dateTimeISO(date: string, h: string, m: string): string {
@@ -39,14 +68,19 @@ function dateTimeISO(date: string, h: string, m: string): string {
   return new Date(y, mo - 1, d, Number(h), Number(m)).toISOString()
 }
 
-function parseCron(cron: string): { mm: string; HH: string; monthDay: number; weekDays: Set<number>; weeklyInterval: number } {
-  let actualCron = cron
+function parseCron(cron: string): { mm: string; HH: string; monthDay: number; weekDays: Set<number>; weeklyInterval: number; untilDate: string | null } {
+  // Extract UNTIL suffix
+  const untilMatch = cron.match(/ UNTIL:(\d{4}-\d{2}-\d{2})$/)
+  const untilDate = untilMatch ? untilMatch[1] : null
+  const base = untilDate ? cron.slice(0, cron.length - untilMatch![0].length) : cron
+
+  let actualCron = base
   let weeklyInterval = 1
-  if (cron.startsWith('BIWEEKLY ')) {
-    actualCron = cron.slice('BIWEEKLY '.length)
+  if (base.startsWith('BIWEEKLY ')) {
+    actualCron = base.slice('BIWEEKLY '.length)
     weeklyInterval = 2
   } else {
-    const m = cron.match(/^WEEKLY_(\d+) (.+)$/)
+    const m = base.match(/^WEEKLY_(\d+) (.+)$/)
     if (m) { weeklyInterval = Number(m[1]); actualCron = m[2] }
   }
   const p = actualCron.split(' ')
@@ -56,6 +90,7 @@ function parseCron(cron: string): { mm: string; HH: string; monthDay: number; we
     monthDay: p[2] && p[2] !== '*' ? Number(p[2]) : 1,
     weekDays: p[4] && p[4] !== '*' ? new Set(p[4].split(',').map(Number)) : new Set<number>(),
     weeklyInterval,
+    untilDate,
   }
 }
 
@@ -84,6 +119,9 @@ export default function EditTaskPage({ params }: { params: { groupId: string; ta
   const [weeklyInterval, setWeeklyInterval] = useState(1)
   const [monthDay, setMonthDay]       = useState(1)
   const [startDate, setStartDate]     = useState(todayDate())
+  const [endType, setEndType]         = useState<EndType>('never')
+  const [endDate, setEndDate]         = useState('')
+  const [endAfter, setEndAfter]       = useState(10)
   const [loading, setLoading]         = useState(true)
   const [saving, setSaving]           = useState(false)
   const [error, setError]             = useState('')
@@ -106,12 +144,16 @@ export default function EditTaskPage({ params }: { params: { groupId: string; ta
         }
 
         if (task.recurrenceCron) {
-          const { mm, HH, monthDay: md, weekDays, weeklyInterval: wi } = parseCron(task.recurrenceCron)
+          const { mm, HH, monthDay: md, weekDays, weeklyInterval: wi, untilDate } = parseCron(task.recurrenceCron)
           setHour(HH)
           setMinute(mm)
           setMonthDay(md)
           setSelectedDays(weekDays)
           setWeeklyInterval(wi)
+          if (untilDate) {
+            setEndType('on')
+            setEndDate(untilDate)
+          }
         }
       })
       .catch(() => setError('Kunde inte ladda uppgift.'))
@@ -134,8 +176,19 @@ export default function EditTaskPage({ params }: { params: { groupId: string; ta
       const dueDateISO = recType === 'NONE'
         ? dateTimeISO(dueDate, hour, minute)
         : dateTimeISO(startDate, hour, minute)
+
+      let untilDate: string | undefined
+      if (recType !== 'NONE') {
+        if (endType === 'on' && endDate) {
+          untilDate = endDate
+        } else if (endType === 'after' && endAfter > 0) {
+          const start = new Date(dueDateISO)
+          untilDate = nthOccurrenceDate(recType, selectedDays, monthDay, weeklyInterval, start, endAfter) ?? undefined
+        }
+      }
+
       const cron = recType !== 'NONE'
-        ? buildCron(recType, hour, minute, [...selectedDays], monthDay, weeklyInterval)
+        ? buildCron(recType, hour, minute, [...selectedDays], monthDay, weeklyInterval, untilDate)
         : undefined
       const recurrence = (recType === 'WEEKLY' && weeklyInterval > 1) ? 'CUSTOM' : recType
 
@@ -241,11 +294,35 @@ export default function EditTaskPage({ params }: { params: { groupId: string; ta
 
         {recType !== 'NONE' && (
           <div className={styles.section}>
-            <div className={styles.sectionTitle}>Startdatum</div>
+            <div className={styles.sectionTitle}>Intervall för återkommande</div>
             <div className={styles.row}>
               <span className={styles.rowLabel}>Start</span>
               <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
                 className={styles.inputSm} required />
+            </div>
+            <div className={styles.radioGroup} style={{ marginTop: '0.625rem' }}>
+              <label className={styles.radioRow}>
+                <input type="radio" name="endType" value="never" checked={endType === 'never'} onChange={() => setEndType('never')} />
+                <span className={styles.radioLabel}>Inget slutdatum</span>
+              </label>
+              <label className={styles.radioRow}>
+                <input type="radio" name="endType" value="on" checked={endType === 'on'} onChange={() => setEndType('on')} />
+                <span className={styles.radioLabel}>Slutar</span>
+                {endType === 'on' && (
+                  <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={styles.inputSm} />
+                )}
+              </label>
+              <label className={styles.radioRow}>
+                <input type="radio" name="endType" value="after" checked={endType === 'after'} onChange={() => setEndType('after')} />
+                <span className={styles.radioLabel}>Slutar efter</span>
+                {endType === 'after' && (
+                  <>
+                    <input type="number" min={1} max={999} value={endAfter}
+                      onChange={e => setEndAfter(Number(e.target.value))} className={styles.numInput} />
+                    <span style={{ fontSize: '0.875rem' }}>tillfällen</span>
+                  </>
+                )}
+              </label>
             </div>
           </div>
         )}
