@@ -149,6 +149,25 @@ function isActive(task: Task): boolean {
   return task.status !== 'DONE'
 }
 
+/** Parse a YYYY-MM-DD string as a local date (avoids UTC off-by-one). */
+function parseLocalDate(s: string): Date {
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(y!, m! - 1, d!)
+}
+
+const fmtSkipDate = new Intl.DateTimeFormat('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' })
+
+/** Returns sorted, human-readable Swedish date strings for the exception dates. */
+function formatExceptionDates(exceptionDates: string | null | undefined): string[] {
+  if (!exceptionDates) return []
+  return exceptionDates
+    .split(',')
+    .filter(Boolean)
+    .map(s => ({ raw: s, date: parseLocalDate(s) }))
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .map(({ date }) => fmtSkipDate.format(date))
+}
+
 // ── Clock face view ─────────────────────────────────────────────────────────
 
 const SVG_W = 500
@@ -487,6 +506,17 @@ export default function TasksPage({ params }: { params: { groupId: string } }) {
                         )}
                       </div>
                       {rec && <div className={styles.recurrence}>{rec}</div>}
+                      {(() => {
+                        const skipped = formatExceptionDates(task.exceptionDates)
+                        return skipped.length > 0 ? (
+                          <div className={styles.skippedDates}>
+                            <span className={styles.skippedLabel}>⊘ Överhoppade:</span>
+                            {skipped.map(d => (
+                              <span key={d} className={styles.skippedChip}>{d}</span>
+                            ))}
+                          </div>
+                        ) : null
+                      })()}
                       {task.description && (
                         <p className={styles.description}>{task.description}</p>
                       )}

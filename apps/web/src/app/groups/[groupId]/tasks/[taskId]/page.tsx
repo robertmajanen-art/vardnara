@@ -13,7 +13,7 @@ type Task = {
   dueDate?: string | null
   recurrence?: string
   recurrenceCron?: string | null
-  exceptionDates?: string | null
+  exceptionDates?: string | null  // comma-separated YYYY-MM-DD dates of skipped occurrences
   assignee?: { id: string; email: string } | null
   createdBy: { id: string; email: string }
 }
@@ -239,6 +239,32 @@ export default function TaskDetailPage({ params }: { params: { groupId: string; 
               {task.recurrence && task.recurrence !== 'NONE' ? 'Starttid' : 'Förfallotid'}
             </span>
             <span className={styles.fieldValue}>{fmtDate.format(new Date(task.dueDate))}</span>
+          </div>
+        )}
+
+        {task.exceptionDates && task.exceptionDates.split(',').filter(Boolean).length > 0 && (
+          <div className={styles.field}>
+            <span className={styles.fieldLabel}>Överhoppade tillfällen</span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem', marginTop: '0.125rem' }}>
+              {task.exceptionDates
+                .split(',')
+                .filter(Boolean)
+                .sort()
+                .map(d => {
+                  const [y, m, day] = d.split('-').map(Number)
+                  const date = new Date(y!, m! - 1, day!)
+                  return (
+                    <span key={d} style={{
+                      fontSize: '0.8125rem', padding: '0.125rem 0.5rem', borderRadius: 999,
+                      background: '#f5f0fa', color: '#8b5e9e', border: '1px solid #e0d0f0',
+                      textDecoration: 'line-through',
+                    }}>
+                      {new Intl.DateTimeFormat('sv-SE', { day: 'numeric', month: 'short', year: 'numeric' }).format(date)}
+                    </span>
+                  )
+                })
+              }
+            </div>
           </div>
         )}
 
