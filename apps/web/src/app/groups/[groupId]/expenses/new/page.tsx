@@ -6,19 +6,19 @@ import { api } from '../../../../../lib/api'
 import styles from '../../../../login/login.module.css'
 import pageStyles from './new.module.css'
 
+// Must match the ExpenseCategory enum in the backend schema
 const CATEGORIES = [
-  'FOOD', 'TRANSPORT', 'MEDICAL', 'HOUSING', 'CLOTHING', 'PERSONAL_CARE', 'LEISURE', 'OTHER',
+  'MEDICATION', 'FOOD', 'TRANSPORT', 'EQUIPMENT', 'SERVICES', 'INSURANCE', 'OTHER',
 ] as const
 
 const CATEGORY_LABELS: Record<string, string> = {
-  FOOD: '🍽️ Mat & dryck',
-  TRANSPORT: '🚗 Transport',
-  MEDICAL: '🩺 Vård & hälsa',
-  HOUSING: '🏠 Boende & hem',
-  CLOTHING: '👕 Kläder',
-  PERSONAL_CARE: '🌸 Personlig hygien',
-  LEISURE: '🌿 Fritid & nöje',
-  OTHER: '✨ Övrigt',
+  MEDICATION:  '💊 Medicin',
+  FOOD:        '🍽️ Mat & dryck',
+  TRANSPORT:   '🚗 Transport',
+  EQUIPMENT:   '🛠️ Utrustning & hjälpmedel',
+  SERVICES:    '🩺 Vård & tjänster',
+  INSURANCE:   '🛡️ Försäkring',
+  OTHER:       '✨ Övrigt',
 }
 
 export default function NewExpensePage({ params }: { params: { groupId: string } }) {
@@ -41,7 +41,9 @@ export default function NewExpensePage({ params }: { params: { groupId: string }
         amount: amountOre,
         category,
         description,
-        expenseDate,
+        // Backend requires a full ISO datetime. Use UTC noon so the date is
+        // unambiguous in every timezone (avoids midnight-rollover off-by-one).
+        expenseDate: expenseDate + 'T12:00:00.000Z',
       })
       router.push(`/groups/${params.groupId}/expenses` as never)
     } catch (err: unknown) {
