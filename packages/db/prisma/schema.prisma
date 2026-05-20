@@ -253,7 +253,8 @@ model Appointment {
   startTime       DateTime
   endTime         DateTime?
   recurrence      RecurrencePattern @default(NONE)
-  recurrenceCron  String?           // cron expression (or "BIWEEKLY mm HH * * days")
+  recurrenceCron  String?           // cron expression (or "BIWEEKLY mm HH * * days[ UNTIL:date]")
+  exceptionDates  String?           // comma-separated YYYY-MM-DD dates to skip for recurring
   assigneeAccepted Boolean?       // null = pending, true = accepted, false = declined
   assigneeNote    String?         // note from assignee on accept/decline
   outcomeNotes    String?         // post-meeting outcome added by assignee
@@ -285,6 +286,7 @@ model Task {
   status        TaskStatus        @default(OPEN)
   recurrence    RecurrencePattern @default(NONE)
   recurrenceCron String?          // cron expression for CUSTOM recurrence
+  exceptionDates String?          // comma-separated YYYY-MM-DD dates to skip for recurring
   completedAt   DateTime?
   completionNote String?
   completionPhotoKey String?      // S3 key for completion photo

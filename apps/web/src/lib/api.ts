@@ -82,9 +82,11 @@ export type Appointment = {
   endTime?: string | null
   recurrence?: string | null
   recurrenceCron?: string | null
+  exceptionDates?: string | null
   assigneeId?: string | null
   assignee?: { id: string; email: string } | null
   assigneeAccepted?: boolean | null
+  createdBy?: { id: string; email: string } | null
   createdAt: string
 }
 
@@ -99,8 +101,10 @@ export type Task = {
   assignee?: { id: string; email: string } | null
   recurrence: string
   recurrenceCron?: string | null
+  exceptionDates?: string | null
   completedAt?: string | null
   completionNote?: string | null
+  createdBy?: { id: string; email: string } | null
   createdAt: string
 }
 

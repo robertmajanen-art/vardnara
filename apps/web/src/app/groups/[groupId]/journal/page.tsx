@@ -108,9 +108,9 @@ export default function JournalPage({ params }: { params: { groupId: string } })
                   </span>
                 </div>
                 <div className={styles.itemTitle}>{e.title}</div>
-                {e.author && (
-                  <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>{e.author.email}</span>
-                )}
+                <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
+                  Skriven av: {e.author?.email ?? '—'}
+                </span>
                 <p className={styles.description}>{e.body}</p>
                 {e.tags.length > 0 && (
                   <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'wrap', marginTop: '0.375rem' }}>

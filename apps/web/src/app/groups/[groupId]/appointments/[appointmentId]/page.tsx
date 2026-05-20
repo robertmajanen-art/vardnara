@@ -15,6 +15,7 @@ type Appointment = {
   notes?: string | null
   assignee?: { id: string; email: string } | null
   assigneeAccepted?: boolean | null
+  recurrence?: string | null
   createdBy: { id: string; email: string }
 }
 
@@ -30,6 +31,7 @@ export default function AppointmentDetailPage({ params }: { params: { groupId: s
   const [apt, setApt] = useState<Appointment | null>(null)
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
+  const [deleteDialog, setDeleteDialog] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -40,8 +42,17 @@ export default function AppointmentDetailPage({ params }: { params: { groupId: s
       .finally(() => setLoading(false))
   }, [params.groupId, params.appointmentId])
 
+  function requestDelete() {
+    if (apt?.recurrence && apt.recurrence !== 'NONE') {
+      setDeleteDialog(true)
+    } else {
+      if (!window.confirm('Ta bort besöket permanent?')) return
+      void handleDelete()
+    }
+  }
+
   async function handleDelete() {
-    if (!window.confirm('Ta bort besöket permanent?')) return
+    setDeleteDialog(false)
     setDeleting(true)
     try {
       await api.delete(`/api/groups/${params.groupId}/appointments/${params.appointmentId}`)
@@ -62,6 +73,29 @@ export default function AppointmentDetailPage({ params }: { params: { groupId: s
 
   return (
     <div className={styles.page}>
+      {deleteDialog && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setDeleteDialog(false)}>
+          <div style={{ background: 'var(--color-bg)', borderRadius: 12, padding: '1.5rem', maxWidth: 340, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}
+            onClick={e => e.stopPropagation()}>
+            <p style={{ fontWeight: 700, marginBottom: '0.375rem' }}>Ta bort återkommande besök</p>
+            <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+              Detta är ett återkommande besök. Vill du ta bort hela serien permanent?
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <button onClick={() => handleDelete()}
+                style={{ padding: '0.625rem', borderRadius: 8, background: '#dc2626', color: 'white', border: 'none', fontWeight: 500, cursor: 'pointer' }}>
+                Ta bort hela serien
+              </button>
+              <button onClick={() => setDeleteDialog(false)}
+                style={{ padding: '0.625rem', borderRadius: 8, background: 'var(--color-surface)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)', cursor: 'pointer' }}>
+                Avbryt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className={styles.header}>
         <a href={`/groups/${params.groupId}/calendar`} className={styles.back}>← Tillbaka</a>
         <h1>{apt.title}</h1>
@@ -126,7 +160,7 @@ export default function AppointmentDetailPage({ params }: { params: { groupId: s
           <a href={`/groups/${params.groupId}/appointments/${params.appointmentId}/edit`} className={styles.btnSecondary}>
             ✏️ Redigera
           </a>
-          <button className={styles.btnDanger} onClick={handleDelete} disabled={deleting}>
+          <button className={styles.btnDanger} onClick={requestDelete} disabled={deleting}>
             {deleting ? 'Tar bort...' : '🗑 Ta bort'}
           </button>
         </div>

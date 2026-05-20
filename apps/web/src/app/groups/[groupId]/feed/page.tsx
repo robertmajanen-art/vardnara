@@ -5,6 +5,22 @@ import { useTranslation } from 'react-i18next'
 import { api, type FeedItem } from '../../../../lib/api'
 import styles from './feed.module.css'
 
+const FEED_ICONS: Record<string, string> = {
+  TASK_CREATED: '✅',
+  TASK_ASSIGNED: '✅',
+  TASK_COMPLETED: '✅',
+  JOURNAL_ENTRY: '📖',
+  APPOINTMENT_CREATED: '🌸',
+  APPOINTMENT_ASSIGNED: '🌸',
+  APPOINTMENT_OUTCOME: '🌸',
+  EXPENSE_ADDED: '🌷',
+  DOCUMENT_ADDED: '📄',
+}
+
+function feedIcon(itemType: string): string {
+  return FEED_ICONS[itemType] ?? '💬'
+}
+
 export default function FeedPage({ params }: { params: { groupId: string } }) {
   const { t } = useTranslation()
   const [items, setItems] = useState<FeedItem[]>([])
@@ -67,7 +83,9 @@ export default function FeedPage({ params }: { params: { groupId: string } }) {
                   style={{ textDecoration: 'none', color: 'inherit' }}
                   onClick={() => !isRead && markRead(item.id)}
                 >
-                  <div className={styles.itemDot} />
+                  <div className={`${styles.itemDot} ${!isRead ? styles.itemDotUnread : ''}`} aria-hidden>
+                    {feedIcon(item.itemType)}
+                  </div>
                   <div className={styles.itemBody}>
                     <div className={styles.itemText}>{item.bodyText ?? item.itemType}</div>
                     <div className={styles.itemTime}>

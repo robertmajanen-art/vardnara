@@ -97,6 +97,12 @@ function taskOccursOnDate(task: Task, viewDate: Date): boolean {
 
   if (viewDay < startDay) return false
 
+  // Respect exception dates (individually skipped occurrences)
+  if (task.exceptionDates) {
+    const exceptions = task.exceptionDates.split(',').filter(Boolean)
+    if (exceptions.includes(dateKey(viewDate))) return false
+  }
+
   // Respect end date encoded in cron
   const cron = task.recurrenceCron ?? ''
   const endDate = parseEndDate(cron)
@@ -127,6 +133,16 @@ function taskOccursOnDate(task: Task, viewDate: Date): boolean {
   }
 
   return false
+}
+
+/** Returns the date string of the next occurrence on or after `from`. */
+function nextOccurrenceDate(task: Task, from: Date): string | null {
+  const cursor = new Date(from); cursor.setHours(0, 0, 0, 0)
+  for (let i = 0; i < 400; i++) {
+    if (taskOccursOnDate(task, cursor)) return dateKey(cursor)
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return null
 }
 
 function isActive(task: Task): boolean {
@@ -334,6 +350,7 @@ export default function TasksPage({ params }: { params: { groupId: string } }) {
   const [loading, setLoading] = useState(true)
   const [activeFilter, setActiveFilter] = useState<'' | 'active' | 'inactive'>('')
   const [completing, setCompleting] = useState<string | null>(null)
+  const [deleteDialog, setDeleteDialog] = useState<{ taskId: string; skipDate: string } | null>(null)
 
   useEffect(() => {
     api
@@ -358,8 +375,29 @@ export default function TasksPage({ params }: { params: { groupId: string } }) {
     }
   }
 
-  async function handleDelete(taskId: string) {
-    if (!window.confirm('Ta bort uppgiften permanent?')) return
+  function openDeleteDialog(task: Task) {
+    const isRecurring = task.recurrence && task.recurrence !== 'NONE'
+    if (!isRecurring) {
+      if (!window.confirm('Ta bort uppgiften permanent?')) return
+      void deleteAll(task.id)
+      return
+    }
+    const skipDate = nextOccurrenceDate(task, new Date()) ?? dateKey(new Date())
+    setDeleteDialog({ taskId: task.id, skipDate })
+  }
+
+  async function skipOccurrence(taskId: string, date: string) {
+    setDeleteDialog(null)
+    try {
+      const updated = await api.patch<Task>(`/api/groups/${params.groupId}/tasks/${taskId}/skip`, { date })
+      setAllTasks(prev => prev.map(t => t.id === taskId ? { ...t, exceptionDates: updated.exceptionDates } : t))
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Kunde inte hoppa över tillfälle.')
+    }
+  }
+
+  async function deleteAll(taskId: string) {
+    setDeleteDialog(null)
     const snapshot = allTasks
     setAllTasks(prev => prev.filter(t => t.id !== taskId))
     try {
@@ -378,6 +416,31 @@ export default function TasksPage({ params }: { params: { groupId: string } }) {
 
   return (
     <div className={styles.page}>
+      {deleteDialog && (
+        <div className={styles.dialogOverlay} onClick={() => setDeleteDialog(null)}>
+          <div className={styles.dialog} onClick={e => e.stopPropagation()}>
+            <p className={styles.dialogTitle}>Ta bort återkommande uppgift</p>
+            <p className={styles.dialogText}>
+              Vill du hoppa över nästa tillfälle ({deleteDialog.skipDate}) eller ta bort hela serien?
+            </p>
+            <div className={styles.dialogBtns}>
+              <button className={`${styles.dialogBtn} ${styles.dialogBtnSkip}`}
+                onClick={() => skipOccurrence(deleteDialog.taskId, deleteDialog.skipDate)}>
+                Hoppa över detta tillfälle
+              </button>
+              <button className={`${styles.dialogBtn} ${styles.dialogBtnDanger}`}
+                onClick={() => deleteAll(deleteDialog.taskId)}>
+                Ta bort hela serien
+              </button>
+              <button className={`${styles.dialogBtn} ${styles.dialogBtnCancel}`}
+                onClick={() => setDeleteDialog(null)}>
+                Avbryt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className={styles.header}>
         <h1>{t('nav.tasks')}</h1>
         <a href={`/groups/${params.groupId}/tasks/new`} className={styles.addBtn}>+ Ny uppgift</a>
@@ -425,6 +488,11 @@ export default function TasksPage({ params }: { params: { groupId: string } }) {
                       {task.description && (
                         <p className={styles.description}>{task.description}</p>
                       )}
+                      {task.createdBy && (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                          Skapad av: {task.createdBy.email}
+                        </span>
+                      )}
                     </a>
                     <div className={styles.itemActions}>
                       {active && (
@@ -438,7 +506,7 @@ export default function TasksPage({ params }: { params: { groupId: string } }) {
                       <a href={`/groups/${params.groupId}/tasks/${task.id}/edit`}
                         className={styles.iconBtn} title="Redigera">✏️</a>
                       <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
-                        onClick={() => handleDelete(task.id)} title="Ta bort">🗑</button>
+                        onClick={() => openDeleteDialog(task)} title="Ta bort">🗑</button>
                     </div>
                   </li>
                 )

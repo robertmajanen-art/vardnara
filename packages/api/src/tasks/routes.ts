@@ -100,6 +100,29 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
     },
   )
 
+  // PATCH /api/groups/:groupId/tasks/:taskId/skip — skip one occurrence
+  fastify.patch<{ Params: TP }>(
+    '/:groupId/tasks/:taskId/skip',
+    { onRequest: [fastify.authenticate], preHandler: [mwSupporter()] },
+    async (req, reply) => {
+      const { date } = req.body as { date?: string }
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return reply.code(400).send({ message: 'date (YYYY-MM-DD) required' })
+      }
+      const task = await db.task.findUniqueOrThrow({
+        where: { id: req.params.taskId, groupId: req.params.groupId },
+      })
+      const existing = (task.exceptionDates ?? '').split(',').filter(Boolean)
+      if (!existing.includes(date)) existing.push(date)
+      const updated = await db.task.update({
+        where: { id: req.params.taskId, groupId: req.params.groupId },
+        data: { exceptionDates: existing.join(',') },
+        include: { assignee: { select: { id: true, email: true } }, createdBy: { select: { id: true, email: true } } },
+      })
+      return reply.send(updated)
+    },
+  )
+
   // DELETE /api/groups/:groupId/tasks/:taskId — Supporter+
   fastify.delete<{ Params: TP }>(
     '/:groupId/tasks/:taskId',

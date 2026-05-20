@@ -124,6 +124,28 @@ export const appointmentRoutes: FastifyPluginAsync = async (fastify) => {
     },
   )
 
+  // PATCH /api/groups/:groupId/appointments/:appointmentId/skip — skip one occurrence
+  fastify.patch<{ Params: AP }>(
+    '/:groupId/appointments/:appointmentId/skip',
+    { onRequest: [fastify.authenticate], preHandler: [mwSupporter()] },
+    async (req, reply) => {
+      const { date } = req.body as { date?: string }
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return reply.code(400).send({ message: 'date (YYYY-MM-DD) required' })
+      }
+      const apt = await db.appointment.findUniqueOrThrow({
+        where: { id: req.params.appointmentId, groupId: req.params.groupId },
+      })
+      const existing = (apt.exceptionDates ?? '').split(',').filter(Boolean)
+      if (!existing.includes(date)) existing.push(date)
+      const updated = await db.appointment.update({
+        where: { id: req.params.appointmentId, groupId: req.params.groupId },
+        data: { exceptionDates: existing.join(',') },
+      })
+      return reply.send(updated)
+    },
+  )
+
   // DELETE /api/groups/:groupId/appointments/:appointmentId — Supporter+
   fastify.delete<{ Params: AP }>(
     '/:groupId/appointments/:appointmentId',

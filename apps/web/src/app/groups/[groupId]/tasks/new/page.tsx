@@ -202,7 +202,7 @@ export default function NewTaskPage({ params }: { params: { groupId: string } })
               <input
                 type="date"
                 value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
+                onChange={(e) => { setDueDate(e.target.value); setStartDate(e.target.value) }}
                 className={styles.inputSm}
                 required
               />

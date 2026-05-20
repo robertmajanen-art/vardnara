@@ -27,6 +27,20 @@ async function applyPendingMigrations(prisma: PrismaClient) {
       `
       console.log('[prisma] Migration applied.')
     }
+
+    // 20260520000001_exception_dates — add exceptionDates to Appointment and Task
+    const exRows = await prisma.$queryRaw<{ column_name: string }[]>`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'Appointment'
+        AND column_name = 'exceptionDates'
+    `
+    if (exRows.length === 0) {
+      console.log('[prisma] Applying migration: 20260520000001_exception_dates')
+      await prisma.$executeRaw`ALTER TABLE "Appointment" ADD COLUMN IF NOT EXISTS "exceptionDates" TEXT DEFAULT ''`
+      await prisma.$executeRaw`ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS "exceptionDates" TEXT DEFAULT ''`
+      console.log('[prisma] Migration applied.')
+    }
   } catch (err) {
     console.error('[prisma] Migration error (non-fatal):', err)
   }

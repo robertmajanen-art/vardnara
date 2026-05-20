@@ -17,8 +17,12 @@ type Appointment = {
   assigneeAccepted?: boolean | null
   recurrence?: string | null
   recurrenceCron?: string | null
+  exceptionDates?: string | null
+  createdBy?: { id: string; email: string } | null
   _virtual?: boolean // projected virtual occurrence (not from DB directly)
 }
+
+type DeleteDialog = { aptId: string; occurrenceDate: string } | null
 
 const TYPE_COLORS: Record<string, string> = {
   HEALTHCARE: '#0d6efd',
@@ -57,6 +61,9 @@ function projectAppointments(appointments: Appointment[], from: Date, to: Date):
       : null
 
     const cron = apt.recurrenceCron ?? ''
+
+    // Exception dates (individual occurrences to skip)
+    const exceptions = new Set((apt.exceptionDates ?? '').split(',').filter(Boolean))
 
     // Extract UNTIL end date
     const untilMatch = cron.match(/ UNTIL:(\d{4}-\d{2}-\d{2})$/)
@@ -108,15 +115,18 @@ function projectAppointments(appointments: Appointment[], from: Date, to: Date):
       }
 
       if (shouldInclude) {
-        const occDate = new Date(cursor)
-        occDate.setHours(cronHH, cronMm, 0, 0)
-        const isBase = dayKey(occDate) === dayKey(startDate)
-        result.push({
-          ...apt,
-          startTime: occDate.toISOString(),
-          endTime: duration ? new Date(occDate.getTime() + duration).toISOString() : apt.endTime,
-          _virtual: !isBase,
-        })
+        const k = dayKey(cursor)
+        if (!exceptions.has(k)) {
+          const occDate = new Date(cursor)
+          occDate.setHours(cronHH, cronMm, 0, 0)
+          const isBase = dayKey(occDate) === dayKey(startDate)
+          result.push({
+            ...apt,
+            startTime: occDate.toISOString(),
+            endTime: duration ? new Date(occDate.getTime() + duration).toISOString() : apt.endTime,
+            _virtual: !isBase,
+          })
+        }
       }
 
       cursor.setDate(cursor.getDate() + 1)
@@ -132,12 +142,38 @@ export default function CalendarPage({ params }: { params: { groupId: string } }
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [clientNow, setClientNow] = useState<Date | null>(null)
+  const [deleteDialog, setDeleteDialog] = useState<DeleteDialog>(null)
   const todayRef = useRef<HTMLElement>(null)
 
   useEffect(() => { setClientNow(new Date()) }, [])
 
-  async function handleDelete(aptId: string) {
-    if (!window.confirm('Ta bort besöket permanent? (Alla förekomster tas bort)')) return
+  function openDeleteDialog(apt: Appointment) {
+    const isRecurring = apt.recurrence && apt.recurrence !== 'NONE'
+    if (!isRecurring) {
+      // Non-recurring: simple confirm + delete
+      if (!window.confirm('Ta bort besöket permanent?')) return
+      void deleteAll(apt.id)
+      return
+    }
+    setDeleteDialog({ aptId: apt.id, occurrenceDate: dayKey(new Date(apt.startTime)) })
+  }
+
+  async function skipOccurrence(aptId: string, date: string) {
+    setDeleteDialog(null)
+    try {
+      const updated = await api.patch<{ exceptionDates?: string | null }>(
+        `/api/groups/${params.groupId}/appointments/${aptId}/skip`, { date }
+      )
+      setAppointments(prev => prev.map(a =>
+        a.id === aptId ? { ...a, exceptionDates: updated.exceptionDates ?? a.exceptionDates } : a
+      ))
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Kunde inte hoppa över tillfälle.')
+    }
+  }
+
+  async function deleteAll(aptId: string) {
+    setDeleteDialog(null)
     const snapshot = appointments
     setAppointments(prev => prev.filter(a => a.id !== aptId))
     try {
@@ -198,6 +234,31 @@ export default function CalendarPage({ params }: { params: { groupId: string } }
       </header>
 
       <div className={styles.timeline}>
+        {deleteDialog && (
+          <div className={styles.dialogOverlay} onClick={() => setDeleteDialog(null)}>
+            <div className={styles.dialog} onClick={e => e.stopPropagation()}>
+              <p className={styles.dialogTitle}>Ta bort återkommande besök</p>
+              <p className={styles.dialogText}>
+                Vill du ta bort bara detta tillfälle ({deleteDialog.occurrenceDate}) eller hela serien?
+              </p>
+              <div className={styles.dialogBtns}>
+                <button className={`${styles.dialogBtn} ${styles.dialogBtnSkip}`}
+                  onClick={() => skipOccurrence(deleteDialog.aptId, deleteDialog.occurrenceDate)}>
+                  Ta bort bara detta tillfälle
+                </button>
+                <button className={`${styles.dialogBtn} ${styles.dialogBtnDanger}`}
+                  onClick={() => deleteAll(deleteDialog.aptId)}>
+                  Ta bort hela serien
+                </button>
+                <button className={`${styles.dialogBtn} ${styles.dialogBtnCancel}`}
+                  onClick={() => setDeleteDialog(null)}>
+                  Avbryt
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {days.map((day) => {
           const k = dayKey(day)
           const dayApts = aptMap.get(k) ?? []
@@ -234,16 +295,17 @@ export default function CalendarPage({ params }: { params: { groupId: string } }
                         <div className={styles.aptTitle}>{apt.title}</div>
                         {apt.location && <div className={styles.aptMeta}>📍 {apt.location}</div>}
                         {apt.notes && <div className={styles.aptNotes}>{apt.notes}</div>}
-                        {isRecurring && (
-                          <div className={styles.aptRecurringBadge}>🔄 Återkommande</div>
-                        )}
+                        <div className={styles.aptMeta} style={{ marginTop: '0.25rem' }}>
+                          {isRecurring && <span>🔄 Återkommande · </span>}
+                          {apt.createdBy && <span>Skapad av: {apt.createdBy.email}</span>}
+                        </div>
                       </a>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flexShrink: 0 }}>
                         <a href={`/groups/${params.groupId}/appointments/${apt.id}/edit`}
                           style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '2rem', height: '2rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text-muted)', fontSize: '0.8125rem', textDecoration: 'none' }}
                           title="Redigera">✏️</a>
                         <button
-                          onClick={() => handleDelete(apt.id)}
+                          onClick={() => openDeleteDialog(apt)}
                           style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '2rem', height: '2rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text-muted)', fontSize: '0.8125rem', cursor: 'pointer' }}
                           title="Ta bort">🗑</button>
                       </div>
