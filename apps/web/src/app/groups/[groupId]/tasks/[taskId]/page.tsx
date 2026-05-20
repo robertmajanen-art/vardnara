@@ -13,12 +13,63 @@ type Task = {
   dueDate?: string | null
   recurrence?: string
   recurrenceCron?: string | null
+  exceptionDates?: string | null
   assignee?: { id: string; email: string } | null
   createdBy: { id: string; email: string }
 }
 
 const DAY_MAP: Record<number, string> = {
   0: 'Sön', 1: 'Mån', 2: 'Tis', 3: 'Ons', 4: 'Tor', 5: 'Fre', 6: 'Lör',
+}
+
+function dateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function parseCronInterval(cron: string): { interval: number; parts: string[] } {
+  const base = cron.replace(/ UNTIL:\d{4}-\d{2}-\d{2}$/, '')
+  if (base.startsWith('BIWEEKLY ')) return { interval: 2, parts: base.slice('BIWEEKLY '.length).split(' ') }
+  const m = base.match(/^WEEKLY_(\d+) (.+)$/)
+  if (m) return { interval: Number(m[1]), parts: m[2].split(' ') }
+  return { interval: 1, parts: base.split(' ') }
+}
+
+/** Returns the YYYY-MM-DD string of the next occurrence on or after `from`. */
+function nextOccurrenceDate(task: Task, from: Date): string | null {
+  if (!task.dueDate) return null
+  const startDay = new Date(task.dueDate); startDay.setHours(0, 0, 0, 0)
+  const exceptions = new Set((task.exceptionDates ?? '').split(',').filter(Boolean))
+  const cursor = new Date(from); cursor.setHours(0, 0, 0, 0)
+  const cron = task.recurrenceCron ?? ''
+  const { interval, parts } = parseCronInterval(cron)
+
+  for (let i = 0; i < 400; i++) {
+    if (cursor >= startDay) {
+      const k = dateKey(cursor)
+      if (!exceptions.has(k)) {
+        let occurs = false
+        if (task.recurrence === 'DAILY') {
+          occurs = true
+        } else if (task.recurrence === 'WEEKLY') {
+          const dayPart = parts[4] ?? '*'
+          occurs = dayPart === '*' || dayPart.split(',').map(Number).includes(cursor.getDay())
+        } else if (task.recurrence === 'CUSTOM' && interval > 1) {
+          const dayPart = parts[4] ?? '*'
+          const days = dayPart !== '*' ? dayPart.split(',').map(Number) : [0,1,2,3,4,5,6]
+          if (days.includes(cursor.getDay())) {
+            const weekDiff = Math.round((cursor.getTime() - startDay.getTime()) / (7 * 86400000))
+            occurs = weekDiff % interval === 0
+          }
+        } else if (task.recurrence === 'MONTHLY') {
+          const dayOfMonth = parts[2] && parts[2] !== '*' ? Number(parts[2]) : startDay.getDate()
+          occurs = cursor.getDate() === dayOfMonth
+        }
+        if (occurs) return k
+      }
+    }
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return null
 }
 
 function formatRecurrence(task: Task): string | null {
@@ -46,6 +97,7 @@ export default function TaskDetailPage({ params }: { params: { groupId: string; 
   const [completing, setCompleting] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteDialog, setDeleteDialog] = useState(false)
+  const [skipDate, setSkipDate] = useState<string | null>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -70,10 +122,26 @@ export default function TaskDetailPage({ params }: { params: { groupId: string; 
 
   function requestDelete() {
     if (task?.recurrence && task.recurrence !== 'NONE') {
+      setSkipDate(nextOccurrenceDate(task, new Date()))
       setDeleteDialog(true)
     } else {
       if (!window.confirm('Ta bort uppgiften permanent?')) return
       void handleDelete()
+    }
+  }
+
+  async function handleSkipOccurrence() {
+    if (!skipDate) return
+    setDeleteDialog(false)
+    try {
+      const updated = await api.patch<Task>(
+        `/api/groups/${params.groupId}/tasks/${params.taskId}/skip`,
+        { date: skipDate }
+      )
+      setTask(t => t ? { ...t, exceptionDates: updated.exceptionDates } : t)
+      setSkipDate(nextOccurrenceDate({ ...task!, exceptionDates: updated.exceptionDates }, new Date()))
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Kunde inte hoppa över tillfälle.')
     }
   }
 
@@ -104,9 +172,15 @@ export default function TaskDetailPage({ params }: { params: { groupId: string; 
             onClick={e => e.stopPropagation()}>
             <p style={{ fontWeight: 700, marginBottom: '0.375rem' }}>Ta bort återkommande uppgift</p>
             <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)', marginBottom: '1.25rem', lineHeight: 1.5 }}>
-              Vill du ta bort hela serien av återkommande tillfällen permanent?
+              Vill du hoppa över nästa tillfälle{skipDate ? ` (${skipDate})` : ''} eller ta bort hela serien permanent?
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {skipDate && (
+                <button onClick={() => handleSkipOccurrence()}
+                  style={{ padding: '0.625rem', borderRadius: 8, background: 'var(--color-primary)', color: 'white', border: 'none', fontWeight: 500, cursor: 'pointer' }}>
+                  Hoppa över detta tillfälle
+                </button>
+              )}
               <button onClick={() => handleDelete()}
                 style={{ padding: '0.625rem', borderRadius: 8, background: '#dc2626', color: 'white', border: 'none', fontWeight: 500, cursor: 'pointer' }}>
                 Ta bort hela serien
