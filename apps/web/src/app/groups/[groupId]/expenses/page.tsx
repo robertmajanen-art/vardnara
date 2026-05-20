@@ -10,6 +10,7 @@ type Expense = {
   category: string
   description: string
   expenseDate: string
+  hasReceipt: boolean
   createdBy: { id: string; email: string }
 }
 
@@ -191,7 +192,10 @@ export default function ExpensesPage({ params }: { params: { groupId: string } }
                             {fmtDay.format(new Date(e.expenseDate))}
                           </span>
                         </div>
-                        <div className={styles.itemDesc}>{e.description}</div>
+                        <div className={styles.itemDesc}>
+                          {e.description}
+                          {e.hasReceipt && <span className={styles.clipBadge} title="Kvitto bifogat">📎</span>}
+                        </div>
                         <div className={styles.itemBy}>{e.createdBy.email}</div>
                       </a>
                       <div className={styles.itemRight}>

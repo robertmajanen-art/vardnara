@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '../../../../../../lib/api'
+import { isPdfDataUrl, processReceiptFile } from '../../_receiptUtils'
 import loginStyles from '../../../../../login/login.module.css'
 import expStyles from '../../expenses.module.css'
 import pageStyles from '../../new/new.module.css'
@@ -19,29 +20,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   SERVICES:   '🩺 Vård & tjänster',
   INSURANCE:  '🛡️ Försäkring',
   OTHER:      '✨ Övrigt',
-}
-
-function compressImage(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onerror = reject
-    reader.onload = (ev) => {
-      const img = new Image()
-      img.onerror = reject
-      img.onload = () => {
-        const MAX = 1200
-        const scale = img.width > MAX ? MAX / img.width : 1
-        const w = Math.round(img.width * scale)
-        const h = Math.round(img.height * scale)
-        const canvas = document.createElement('canvas')
-        canvas.width = w; canvas.height = h
-        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
-        resolve(canvas.toDataURL('image/jpeg', 0.78))
-      }
-      img.src = ev.target!.result as string
-    }
-    reader.readAsDataURL(file)
-  })
 }
 
 type Expense = {
@@ -84,8 +62,8 @@ export default function EditExpensePage({ params }: { params: { groupId: string;
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    try { setReceiptData(await compressImage(file)) }
-    catch { setError('Kunde inte läsa bilden.') }
+    try { setReceiptData(await processReceiptFile(file)) }
+    catch { setError('Kunde inte läsa filen.') }
   }
 
   const previewSrc = receiptData !== null ? (receiptData || null) : existingReceipt
@@ -159,8 +137,12 @@ export default function EditExpensePage({ params }: { params: { groupId: string;
           <div className={expStyles.uploadArea} onClick={() => fileRef.current?.click()}>
             {previewSrc ? (
               <>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={previewSrc} alt="Kvitto" className={expStyles.uploadPreview} />
+                {isPdfDataUrl(previewSrc) ? (
+                  <span className={expStyles.uploadHint}>📄 PDF bifogad</span>
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={previewSrc} alt="Kvitto" className={expStyles.uploadPreview} />
+                )}
                 <button type="button" className={expStyles.removeBtn}
                   onClick={ev => {
                     ev.stopPropagation()
@@ -168,14 +150,14 @@ export default function EditExpensePage({ params }: { params: { groupId: string;
                     setExistingReceipt(null)
                     if (fileRef.current) fileRef.current.value = ''
                   }}>
-                  Ta bort kvitto
+                  Ta bort bilaga
                 </button>
               </>
             ) : (
-              <span className={expStyles.uploadHint}>📷 Tryck för att bifoga kvittobild</span>
+              <span className={expStyles.uploadHint}>📎 Tryck för att bifoga kvitto (bild eller PDF)</span>
             )}
           </div>
-          <input ref={fileRef} type="file" accept="image/*" capture="environment"
+          <input ref={fileRef} type="file" accept="image/*,application/pdf"
             style={{ display: 'none' }} onChange={handleFileChange} />
         </div>
 

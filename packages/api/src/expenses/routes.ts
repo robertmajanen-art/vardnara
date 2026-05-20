@@ -61,14 +61,17 @@ export const expenseRoutes: FastifyPluginAsync = async (fastify) => {
         select: {
           id: true, amount: true, category: true, description: true,
           expenseDate: true,
-          // Exclude receiptKey from list to keep payloads small
+          receiptKey: true, // used to compute hasReceipt; content excluded below
           createdBy: { select: { id: true, email: true } },
         },
       })
       const hasMore = !hasDateFilter && expenses.length > limit
+      const raw = hasMore ? expenses.slice(0, limit) : expenses
+      // Replace receiptKey with a boolean flag to keep payloads small
+      const items = raw.map(({ receiptKey, ...e }) => ({ ...e, hasReceipt: !!receiptKey }))
       return {
-        items: hasMore ? expenses.slice(0, limit) : expenses,
-        nextCursor: hasMore ? expenses[limit - 1]?.id ?? null : null,
+        items,
+        nextCursor: hasMore ? raw[raw.length - 1]?.id ?? null : null,
       }
     },
   )
