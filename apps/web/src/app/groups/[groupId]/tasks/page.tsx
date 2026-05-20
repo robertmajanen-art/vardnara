@@ -383,12 +383,9 @@ export default function TasksPage({ params }: { params: { groupId: string } }) {
       void deleteAll(task.id)
       return
     }
-    // If the task occurs on the currently displayed clock date, skip that date.
-    // Otherwise fall back to the next occurrence from today.
-    const skipDate = taskOccursOnDate(task, viewDate)
-      ? dateKey(viewDate)
-      : (nextOccurrenceDate(task, new Date()) ?? dateKey(new Date()))
-    setDeleteDialog({ taskId: task.id, skipDate })
+    // Always skip the date currently shown on the clock face — that is exactly
+    // the occurrence the user is looking at when they click delete.
+    setDeleteDialog({ taskId: task.id, skipDate: dateKey(viewDate) })
   }
 
   async function skipOccurrence(taskId: string, date: string) {
