@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { api } from '../../../../../lib/api'
-import styles from '../../detail.module.css'
+import detailStyles from '../../detail.module.css'
+import expStyles from '../expenses.module.css'
 
 type Expense = {
   id: string
@@ -10,22 +12,18 @@ type Expense = {
   category: string
   description: string
   expenseDate: string
+  receiptKey?: string | null
   createdBy: { id: string; email: string }
 }
 
 const CAT_LABELS: Record<string, string> = {
-  MEDICATION: 'Medicin',
-  FOOD: 'Mat & dryck',
-  TRANSPORT: 'Transport',
-  MEDICAL: 'Vård & hälsa',
-  EQUIPMENT: 'Hjälpmedel',
-  SERVICES: 'Tjänster',
-  INSURANCE: 'Försäkring',
-  HOUSING: 'Boende & hem',
-  CLOTHING: 'Kläder',
-  PERSONAL_CARE: 'Personlig hygien',
-  LEISURE: 'Fritid & nöje',
-  OTHER: 'Övrigt',
+  MEDICATION: '💊 Medicin',
+  FOOD:       '🍽️ Mat & dryck',
+  TRANSPORT:  '🚗 Transport',
+  EQUIPMENT:  '🛠️ Utrustning & hjälpmedel',
+  SERVICES:   '🩺 Vård & tjänster',
+  INSURANCE:  '🛡️ Försäkring',
+  OTHER:      '✨ Övrigt',
 }
 
 function formatSEK(ore: number) {
@@ -34,14 +32,12 @@ function formatSEK(ore: number) {
 
 const fmtDate = new Intl.DateTimeFormat('sv-SE', { dateStyle: 'long' })
 
-export default function ExpenseDetailPage({
-  params,
-}: {
-  params: { groupId: string; expenseId: string }
-}) {
-  const [expense, setExpense] = useState<Expense | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+export default function ExpenseDetailPage({ params }: { params: { groupId: string; expenseId: string } }) {
+  const router = useRouter()
+  const [expense, setExpense]   = useState<Expense | null>(null)
+  const [loading, setLoading]   = useState(true)
+  const [deleting, setDeleting] = useState(false)
+  const [error, setError]       = useState('')
 
   useEffect(() => {
     api
@@ -51,46 +47,76 @@ export default function ExpenseDetailPage({
       .finally(() => setLoading(false))
   }, [params.groupId, params.expenseId])
 
-  if (loading) return <div className={styles.loading}>Laddar...</div>
-  if (!expense) return <div className={styles.loading}>{error || 'Utgift hittades inte.'}</div>
+  async function handleDelete() {
+    if (!window.confirm('Ta bort utgiften permanent?')) return
+    setDeleting(true)
+    try {
+      await api.delete(`/api/groups/${params.groupId}/expenses/${params.expenseId}`)
+      router.push(`/groups/${params.groupId}/expenses` as never)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Något gick fel.')
+      setDeleting(false)
+    }
+  }
+
+  if (loading) return <div className={detailStyles.loading}>Laddar...</div>
+  if (!expense) return <div className={detailStyles.loading}>{error || 'Utgift hittades inte.'}</div>
 
   return (
-    <div className={styles.page}>
-      <div className={styles.header}>
-        <a href={`/groups/${params.groupId}/expenses`} className={styles.back}>
-          ← Tillbaka
-        </a>
+    <div className={detailStyles.page}>
+      <div className={detailStyles.header}>
+        <a href={`/groups/${params.groupId}/expenses`} className={detailStyles.back}>← Tillbaka</a>
         <h1>{expense.description}</h1>
       </div>
 
-      <div className={styles.card}>
-        <div className={styles.field}>
-          <span className={styles.fieldLabel}>Belopp</span>
-          <span className={styles.amount}>{formatSEK(expense.amount)}</span>
+      <div className={detailStyles.card}>
+        <div className={detailStyles.field}>
+          <span className={detailStyles.fieldLabel}>Belopp</span>
+          <span className={detailStyles.amount}>{formatSEK(expense.amount)}</span>
         </div>
 
-        <div className={styles.field}>
-          <span className={styles.fieldLabel}>Kategori</span>
+        <div className={detailStyles.field}>
+          <span className={detailStyles.fieldLabel}>Kategori</span>
           <span>
-            <span className={styles.badge} style={{ background: '#e7f1ff', color: '#0d6efd' }}>
+            <span className={detailStyles.badge} style={{ background: '#e7f1ff', color: '#0d6efd' }}>
               {CAT_LABELS[expense.category] ?? expense.category}
             </span>
           </span>
         </div>
 
-        <div className={styles.field}>
-          <span className={styles.fieldLabel}>Datum</span>
-          <span className={styles.fieldValue}>
+        <div className={detailStyles.field}>
+          <span className={detailStyles.fieldLabel}>Datum</span>
+          <span className={detailStyles.fieldValue}>
             {fmtDate.format(new Date(expense.expenseDate))}
           </span>
         </div>
 
-        <hr className={styles.divider} />
+        {expense.receiptKey && (
+          <div className={detailStyles.field}>
+            <span className={detailStyles.fieldLabel}>Kvitto</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={expense.receiptKey} alt="Kvitto" className={expStyles.receiptImage} />
+          </div>
+        )}
 
-        <div className={styles.field}>
-          <span className={styles.fieldLabel}>Registrerad av</span>
-          <span className={styles.fieldValue}>{expense.createdBy.email}</span>
+        <hr className={detailStyles.divider} />
+
+        <div className={detailStyles.field}>
+          <span className={detailStyles.fieldLabel}>Registrerad av</span>
+          <span className={detailStyles.fieldValue}>{expense.createdBy.email}</span>
         </div>
+
+        <div className={detailStyles.actions}>
+          <a href={`/groups/${params.groupId}/expenses/${params.expenseId}/edit`}
+            className={detailStyles.btnSecondary}>
+            ✏️ Redigera
+          </a>
+          <button className={detailStyles.btnDanger} onClick={handleDelete} disabled={deleting}>
+            {deleting ? 'Tar bort...' : '🗑 Ta bort'}
+          </button>
+        </div>
+
+        {error && <p className={detailStyles.error}>{error}</p>}
       </div>
     </div>
   )

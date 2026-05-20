@@ -1,13 +1,12 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { api } from '../../../../../lib/api'
-import loginStyles from '../../../../login/login.module.css'
-import expStyles from '../expenses.module.css'
-import pageStyles from './new.module.css'
+import { api } from '../../../../../../lib/api'
+import loginStyles from '../../../../../login/login.module.css'
+import expStyles from '../../expenses.module.css'
+import pageStyles from '../../new/new.module.css'
 
-// Must match the ExpenseCategory enum in the backend schema
 const CATEGORIES = [
   'MEDICATION', 'FOOD', 'TRANSPORT', 'EQUIPMENT', 'SERVICES', 'INSURANCE', 'OTHER',
 ] as const
@@ -22,7 +21,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   OTHER:      '✨ Övrigt',
 }
 
-/** Compress and resize an image file, returning a base64 data-URL (JPEG ≤ 1200px wide). */
 function compressImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -36,8 +34,7 @@ function compressImage(file: File): Promise<string> {
         const w = Math.round(img.width * scale)
         const h = Math.round(img.height * scale)
         const canvas = document.createElement('canvas')
-        canvas.width = w
-        canvas.height = h
+        canvas.width = w; canvas.height = h
         canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
         resolve(canvas.toDataURL('image/jpeg', 0.78))
       }
@@ -47,31 +44,51 @@ function compressImage(file: File): Promise<string> {
   })
 }
 
-export default function NewExpensePage({ params }: { params: { groupId: string } }) {
+type Expense = {
+  id: string; amount: number; category: string; description: string
+  expenseDate: string; receiptKey?: string | null
+}
+
+export default function EditExpensePage({ params }: { params: { groupId: string; expenseId: string } }) {
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
 
+  const [loading, setLoading]         = useState(true)
   const [amountStr, setAmountStr]     = useState('')
-  const [category, setCategory]       = useState<string>('OTHER')
+  const [category, setCategory]       = useState('OTHER')
   const [description, setDescription] = useState('')
-  const [expenseDate, setExpenseDate] = useState(() => {
-    const d = new Date()
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  })
+  const [expenseDate, setExpenseDate] = useState('')
+  // null = keep existing; string = new data URL; '' = remove existing
   const [receiptData, setReceiptData] = useState<string | null>(null)
+  const [existingReceipt, setExistingReceipt] = useState<string | null>(null)
   const [saving, setSaving]           = useState(false)
   const [error, setError]             = useState('')
+
+  useEffect(() => {
+    api.get<Expense>(`/api/groups/${params.groupId}/expenses/${params.expenseId}`)
+      .then(e => {
+        setAmountStr((e.amount / 100).toFixed(2).replace('.', ','))
+        setCategory(e.category)
+        setDescription(e.description)
+        // Parse the stored ISO date back to YYYY-MM-DD for the date input
+        const d = new Date(e.expenseDate)
+        setExpenseDate(
+          `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        )
+        setExistingReceipt(e.receiptKey ?? null)
+      })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Kunde inte ladda utgift.'))
+      .finally(() => setLoading(false))
+  }, [params.groupId, params.expenseId])
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    try {
-      const data = await compressImage(file)
-      setReceiptData(data)
-    } catch {
-      setError('Kunde inte läsa bilden.')
-    }
+    try { setReceiptData(await compressImage(file)) }
+    catch { setError('Kunde inte läsa bilden.') }
   }
+
+  const previewSrc = receiptData !== null ? (receiptData || null) : existingReceipt
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -80,26 +97,29 @@ export default function NewExpensePage({ params }: { params: { groupId: string }
     if (!amountOre || amountOre <= 0) { setError('Ange ett giltigt belopp.'); return }
     setSaving(true)
     try {
-      await api.post(`/api/groups/${params.groupId}/expenses`, {
-        amount: amountOre,
-        category,
-        description,
-        // Backend requires full ISO datetime; UTC noon avoids timezone off-by-one
+      const body: Record<string, unknown> = {
+        amount: amountOre, category, description,
         expenseDate: expenseDate + 'T12:00:00.000Z',
-        ...(receiptData ? { receiptData } : {}),
-      })
-      router.push(`/groups/${params.groupId}/expenses` as never)
+      }
+      if (receiptData !== null) {
+        // receiptData = '' means remove; non-empty string = new image
+        body.receiptData = receiptData || null
+      }
+      await api.patch(`/api/groups/${params.groupId}/expenses/${params.expenseId}`, body)
+      router.push(`/groups/${params.groupId}/expenses/${params.expenseId}` as never)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Något gick fel.')
       setSaving(false)
     }
   }
 
+  if (loading) return <div style={{ padding: '2rem', color: 'var(--color-text-muted)' }}>Laddar...</div>
+
   return (
     <div className={pageStyles.page}>
       <div className={pageStyles.header}>
-        <a href={`/groups/${params.groupId}/expenses`} className={pageStyles.back}>← Tillbaka</a>
-        <h1>Ny utgift</h1>
+        <a href={`/groups/${params.groupId}/expenses/${params.expenseId}`} className={pageStyles.back}>← Tillbaka</a>
+        <h1>Redigera utgift</h1>
       </div>
 
       <form onSubmit={handleSubmit} className={loginStyles.form}>
@@ -131,19 +151,24 @@ export default function NewExpensePage({ params }: { params: { groupId: string }
             className={loginStyles.input} required />
         </label>
 
-        {/* Receipt upload */}
+        {/* Receipt */}
         <div>
           <span className={loginStyles.label} style={{ display: 'block', marginBottom: '0.5rem' }}>
-            Kvitto (valfritt)
+            Kvitto
           </span>
           <div className={expStyles.uploadArea} onClick={() => fileRef.current?.click()}>
-            {receiptData ? (
+            {previewSrc ? (
               <>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={receiptData} alt="Kvitto förhandsgranskning" className={expStyles.uploadPreview} />
+                <img src={previewSrc} alt="Kvitto" className={expStyles.uploadPreview} />
                 <button type="button" className={expStyles.removeBtn}
-                  onClick={ev => { ev.stopPropagation(); setReceiptData(null); if (fileRef.current) fileRef.current.value = '' }}>
-                  Ta bort bild
+                  onClick={ev => {
+                    ev.stopPropagation()
+                    setReceiptData('')   // '' signals "remove"
+                    setExistingReceipt(null)
+                    if (fileRef.current) fileRef.current.value = ''
+                  }}>
+                  Ta bort kvitto
                 </button>
               </>
             ) : (
@@ -157,7 +182,7 @@ export default function NewExpensePage({ params }: { params: { groupId: string }
         {error && <p style={{ color: 'var(--color-error)', fontSize: '0.875rem' }}>{error}</p>}
 
         <button type="submit" className={loginStyles.button} disabled={saving}>
-          {saving ? 'Sparar...' : 'Spara utgift'}
+          {saving ? 'Sparar...' : 'Spara ändringar'}
         </button>
       </form>
     </div>

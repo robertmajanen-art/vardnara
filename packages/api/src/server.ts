@@ -22,7 +22,7 @@ import { expenseRoutes } from './expenses/routes'
 import { startAlarmCron } from './jobs/alarmCron'
 
 console.log('[startup] Fastify init')
-const server = Fastify({ logger: true })
+const server = Fastify({ logger: true, bodyLimit: 6 * 1024 * 1024 }) // 6 MB — allows ~4 MB receipt images
 
 // ── Core plugins ──────────────────────────────────────────────────────────────
 
