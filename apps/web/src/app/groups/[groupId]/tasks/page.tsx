@@ -297,7 +297,7 @@ function ClockView({ tasks, groupId, viewDate, onShiftDay }: {
           const fill = cardColor(task, effectiveNow)
           const label = task.title.length > 14 ? task.title.slice(0, 13) + '…' : task.title
           return (
-            <a key={task.id} href={`/groups/${groupId}/tasks/${task.id}`} style={{ cursor: 'pointer' }}>
+            <a key={task.id} href={`/groups/${groupId}/tasks/${task.id}?occurrenceDate=${dateKey(viewDate)}`} style={{ cursor: 'pointer' }}>
               <path d={`M ${px},${py} L ${RIGHT_X},${py} L ${RIGHT_X},${mid}`}
                 stroke={fill} strokeWidth={1.2} opacity={0.55} fill="none" />
               <rect x={RIGHT_X} y={cy2} width={CARD_W} height={CARD_H} rx={6} fill={fill} />
@@ -313,7 +313,7 @@ function ClockView({ tasks, groupId, viewDate, onShiftDay }: {
           const fill = cardColor(task, effectiveNow)
           const label = task.title.length > 14 ? task.title.slice(0, 13) + '…' : task.title
           return (
-            <a key={task.id} href={`/groups/${groupId}/tasks/${task.id}`} style={{ cursor: 'pointer' }}>
+            <a key={task.id} href={`/groups/${groupId}/tasks/${task.id}?occurrenceDate=${dateKey(viewDate)}`} style={{ cursor: 'pointer' }}>
               <path d={`M ${px},${py} L ${LEFT_X},${py} L ${LEFT_X},${mid}`}
                 stroke={fill} strokeWidth={1.2} opacity={0.55} fill="none" />
               <rect x={LEFT_X - CARD_W} y={cy2} width={CARD_W} height={CARD_H} rx={6} fill={fill} />
@@ -472,7 +472,7 @@ export default function TasksPage({ params }: { params: { groupId: string } }) {
                 const active = isActive(task)
                 return (
                   <li key={task.id} className={`${styles.item} ${task.status === 'OVERDUE' ? styles.overdue : ''}`}>
-                    <a href={`/groups/${params.groupId}/tasks/${task.id}`} className={styles.itemMain}
+                    <a href={`/groups/${params.groupId}/tasks/${task.id}?occurrenceDate=${dateKey(viewDate)}`} className={styles.itemMain}
                       style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
                       <div className={styles.itemTitle}>{task.title}</div>
                       <div className={styles.itemMeta}>

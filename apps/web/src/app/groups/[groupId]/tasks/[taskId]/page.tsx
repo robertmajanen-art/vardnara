@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { api } from '../../../../../lib/api'
 import styles from '../../detail.module.css'
 
@@ -92,6 +92,10 @@ const fmtDate = new Intl.DateTimeFormat('sv-SE', { dateStyle: 'long', timeStyle:
 
 export default function TaskDetailPage({ params }: { params: { groupId: string; taskId: string } }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // If the user arrived here from the clock face, this holds the date they were looking at.
+  // Use it as the skip date so "skip this occurrence" skips the right one.
+  const clockDate = searchParams.get('occurrenceDate') // YYYY-MM-DD or null
   const [task, setTask] = useState<Task | null>(null)
   const [loading, setLoading] = useState(true)
   const [completing, setCompleting] = useState(false)
@@ -122,7 +126,10 @@ export default function TaskDetailPage({ params }: { params: { groupId: string; 
 
   function requestDelete() {
     if (task?.recurrence && task.recurrence !== 'NONE') {
-      setSkipDate(nextOccurrenceDate(task, new Date()))
+      // Prefer the date the user was viewing on the clock face when they navigated here.
+      // Fall back to the next upcoming occurrence if no clock date was passed.
+      const dateToSkip = clockDate ?? nextOccurrenceDate(task, new Date())
+      setSkipDate(dateToSkip)
       setDeleteDialog(true)
     } else {
       if (!window.confirm('Ta bort uppgiften permanent?')) return
