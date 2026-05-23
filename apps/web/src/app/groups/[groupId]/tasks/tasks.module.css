@@ -15,18 +15,19 @@
 }
 
 .clockSection {
-  flex: 0 0 500px;
-  max-width: 500px;
+  flex: 0 0 420px;
+  max-width: 420px;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 960px) {
   .content {
     flex-direction: column;
   }
   .clockSection {
     flex: 0 0 auto;
     width: 100%;
-    order: -1;
+    order: -1;      /* timeline above the task list on small screens */
+    max-width: 100%;
   }
 }
 
@@ -202,44 +203,212 @@
   text-decoration: line-through;
 }
 
-/* ── Clock face day navigation ── */
-.clockNav {
+/* ── Timeline view ─────────────────────────────────────────────────────────── */
+
+.timelineWrap {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  margin-bottom: 0.5rem;
+  flex-direction: column;
+  gap: 0;
 }
 
-.clockNavBtn {
-  width: 2rem;
-  height: 2rem;
+/* Day navigation */
+.tlNav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.tlNavBtn {
+  width: 3rem;
+  height: 3rem;
   border-radius: 50%;
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-primary);
   background: var(--color-bg);
   color: var(--color-primary);
-  font-size: 1rem;
+  font-size: 1.75rem;
+  line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  flex-shrink: 0;
   transition: all 0.15s;
 }
 
-.clockNavBtn:hover {
+.tlNavBtn:hover {
   background: var(--color-primary);
   color: white;
-  border-color: var(--color-primary);
 }
 
-.clockNavLabel {
-  font-size: 0.875rem;
+.tlNavLabel {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--color-text);
+  text-align: center;
+  line-height: 1.3;
+  flex: 1;
+}
+
+/* Large digital clock */
+.digitalClock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem 0 1.25rem;
+  border-bottom: 2px solid var(--color-border);
+  margin-bottom: 1rem;
+}
+
+.digitalTime {
+  font-size: 4rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--color-primary);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.digitalLabel {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  margin-top: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Task list */
+.tlList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0;
+  margin: 0;
+}
+
+.tlEmpty {
+  text-align: center;
+  padding: 2rem 1rem;
+  font-size: 1.125rem;
+  color: var(--color-text-muted);
+}
+
+/* Task card */
+.tlCard {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.125rem;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  text-decoration: none;
+  color: inherit;
+  transition: filter 0.15s, transform 0.1s;
+  min-height: 72px;
+}
+
+.tlCard:active { transform: scale(0.99); }
+
+/* Status variants */
+.tlDone {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+}
+
+.tlPast {
+  background: #fff8e1;
+  border-color: #ffe082;
+  opacity: 0.8;
+}
+
+.tlNext {
+  background: #f3eaff;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(139, 94, 158, 0.18);
+}
+
+.tlFuture {
+  background: var(--color-bg);
+  border-color: var(--color-border);
+}
+
+/* Time stamp */
+.tlTime {
+  font-size: 1.625rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+  min-width: 3.75rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.tlDone .tlTime    { color: #2e7d32; }
+.tlPast .tlTime    { color: #b45309; }
+.tlNext .tlTime    { color: var(--color-primary); }
+
+/* Title + description */
+.tlContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.tlTitle {
+  font-size: 1.1875rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--color-text);
+}
+
+.tlDesc {
+  font-size: 0.9375rem;
+  color: var(--color-text-muted);
+  margin-top: 0.25rem;
+  line-height: 1.4;
+}
+
+/* Status icon */
+.tlIcon {
+  font-size: 1.375rem;
+  font-weight: 700;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tlDone .tlIcon  { background: #2e7d32; color: white; }
+.tlPast .tlIcon  { background: #b45309; color: white; }
+.tlNext .tlIcon  { background: var(--color-primary); color: white; }
+.tlFuture .tlIcon { background: var(--color-surface); color: var(--color-text-muted); border: 2px solid var(--color-border); }
+
+/* "Now" divider */
+.tlNowRow {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.25rem 0;
+}
+
+.tlNowLine {
+  flex: 1;
+  height: 2px;
+  background: var(--color-primary);
+  opacity: 0.5;
+  border-radius: 1px;
+}
+
+.tlNowBadge {
+  font-size: 0.8125rem;
   font-weight: 700;
   color: var(--color-primary);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  min-width: 120px;
-  text-align: center;
+  white-space: nowrap;
+  letter-spacing: 0.04em;
 }
 
 .completeBtn {

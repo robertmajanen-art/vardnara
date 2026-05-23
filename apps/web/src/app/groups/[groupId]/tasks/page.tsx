@@ -168,70 +168,37 @@ function formatExceptionDates(exceptionDates: string | null | undefined): string
     .map(({ date }) => fmtSkipDate.format(date))
 }
 
-// ── Clock face view ─────────────────────────────────────────────────────────
-
-const SVG_W = 500
-const SVG_H = 360
-const CX = 250
-const CY = 190
-const R = 100
-const CARD_W = 110
-const CARD_H = 30
-const CARD_GAP = 5
-const LEFT_X = CX - R - 30
-const RIGHT_X = CX + R + 30
-
-function taskAngle(h: number, m: number): number {
-  return (((h % 12) + m / 60) / 12) * Math.PI * 2
-}
-
-function clockEdge(θ: number): [number, number] {
-  return [CX + R * Math.sin(θ), CY - R * Math.cos(θ)]
-}
-
-function cardColor(task: Task, now: Date): string {
-  if (task.status === 'DONE') return '#198754'
-  if (task.dueDate && new Date(task.dueDate) < now) return '#d97706'
-  return '#8b5e9e'
-}
-
-function placeLabels(idealCenterY: number[]): number[] {
-  const n = idealCenterY.length
-  if (n === 0) return []
-  const step = CARD_H + CARD_GAP
-  let pos = idealCenterY.map(y => y - CARD_H / 2)
-  for (let iter = 0; iter < 30; iter++) {
-    for (let i = 0; i < n; i++) {
-      const ideal = idealCenterY[i] - CARD_H / 2
-      pos[i] += (ideal - pos[i]) * 0.4
-    }
-    for (let i = 1; i < n; i++) {
-      if (pos[i] < pos[i - 1] + step) pos[i] = pos[i - 1] + step
-    }
-    for (let i = n - 2; i >= 0; i--) {
-      if (pos[i] > pos[i + 1] - step) pos[i] = pos[i + 1] - step
-    }
-  }
-  return pos
-}
+// ── Helpers ─────────────────────────────────────────────────────────────────
 
 function dateKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+const FULL_DAY_FMT = new Intl.DateTimeFormat('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' })
+
 function formatViewLabel(d: Date): string {
   const today = new Date()
-  if (dateKey(d) === dateKey(today)) return 'Idag'
+  if (dateKey(d) === dateKey(today)) {
+    const s = FULL_DAY_FMT.format(d)
+    return 'Idag — ' + s.charAt(0).toUpperCase() + s.slice(1)
+  }
   const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1)
-  if (dateKey(d) === dateKey(tomorrow)) return 'Imorgon'
+  if (dateKey(d) === dateKey(tomorrow)) {
+    const s = FULL_DAY_FMT.format(d)
+    return 'Imorgon — ' + s.charAt(0).toUpperCase() + s.slice(1)
+  }
   const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1)
-  if (dateKey(d) === dateKey(yesterday)) return 'Igår'
-  const days = ['Sön', 'Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör']
-  const months = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec']
-  return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`
+  if (dateKey(d) === dateKey(yesterday)) {
+    const s = FULL_DAY_FMT.format(d)
+    return 'Igår — ' + s.charAt(0).toUpperCase() + s.slice(1)
+  }
+  const s = FULL_DAY_FMT.format(d)
+  return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-function ClockView({ tasks, groupId, viewDate, onShiftDay }: {
+// ── Timeline view ────────────────────────────────────────────────────────────
+
+function TimelineView({ tasks, groupId, viewDate, onShiftDay }: {
   tasks: Task[]
   groupId: string
   viewDate: Date
@@ -241,118 +208,111 @@ function ClockView({ tasks, groupId, viewDate, onShiftDay }: {
 
   useEffect(() => {
     setNow(new Date())
-    const id = setInterval(() => setNow(new Date()), 60_000)
+    const id = setInterval(() => setNow(new Date()), 30_000)
     return () => clearInterval(id)
   }, [])
 
   const isToday = dateKey(viewDate) === dateKey(new Date())
+  const nowMinutes = now ? now.getHours() * 60 + now.getMinutes() : -1
 
+  // Tasks for this day sorted by scheduled time
   const dayTasks = tasks
     .filter(t => taskOccursOnDate(t, viewDate))
     .map(t => {
       const { h, m } = taskScheduledHourMinute(t)
-      const θ = taskAngle(h, m)
-      const [px, py] = clockEdge(θ)
-      return { task: t, θ, px, py }
+      return { task: t, h, m, totalMinutes: h * 60 + m }
     })
+    .sort((a, b) => a.totalMinutes - b.totalMinutes)
 
-  const right = dayTasks.filter(({ θ }) => Math.sin(θ) >= 0).sort((a, b) => a.py - b.py)
-  const left  = dayTasks.filter(({ θ }) => Math.sin(θ) <  0).sort((a, b) => a.py - b.py)
-
-  const rightTops = placeLabels(right.map(r => r.py))
-  const leftTops  = placeLabels(left.map(l => l.py))
-
-  const nowH = now ? ((now.getHours() % 12 + now.getMinutes() / 60) / 12) * Math.PI * 2 : null
-  const nowM = now ? (now.getMinutes() / 60) * Math.PI * 2 : null
-  const showHands = isToday && nowH !== null && nowM !== null
-  const effectiveNow = now ?? new Date()
+  // Where to insert the "now" divider — index of first future task
+  const nowInsertBefore = isToday
+    ? dayTasks.findIndex(({ totalMinutes }) => totalMinutes > nowMinutes)
+    : -1
 
   return (
-    <div>
-      <div className={styles.clockNav}>
-        <button className={styles.clockNavBtn} onClick={() => onShiftDay(-1)}>←</button>
-        <span className={styles.clockNavLabel}>{formatViewLabel(viewDate)}</span>
-        <button className={styles.clockNavBtn} onClick={() => onShiftDay(1)}>→</button>
+    <div className={styles.timelineWrap}>
+
+      {/* ── Day navigation ── */}
+      <div className={styles.tlNav}>
+        <button className={styles.tlNavBtn} onClick={() => onShiftDay(-1)} aria-label="Föregående dag">‹</button>
+        <span className={styles.tlNavLabel}>{formatViewLabel(viewDate)}</span>
+        <button className={styles.tlNavBtn} onClick={() => onShiftDay(1)} aria-label="Nästa dag">›</button>
       </div>
 
-      <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} width="100%" overflow="visible" aria-label="Uppgifter">
-        <circle cx={CX} cy={CY} r={R} fill="#2d1040" />
-        <circle cx={CX} cy={CY} r={R} fill="none" stroke="#8b5e9e" strokeWidth={2.5} />
+      {/* ── Large digital clock (today only) ── */}
+      {isToday && now && (
+        <div className={styles.digitalClock}>
+          <span className={styles.digitalTime}>
+            {String(now.getHours()).padStart(2, '0')}:{String(now.getMinutes()).padStart(2, '0')}
+          </span>
+          <span className={styles.digitalLabel}>Klockan nu</span>
+        </div>
+      )}
 
-        {Array.from({ length: 12 }, (_, i) => {
-          const θ = (i / 12) * Math.PI * 2
-          return (
-            <line key={i}
-              x1={CX + (R - 10) * Math.sin(θ)} y1={CY - (R - 10) * Math.cos(θ)}
-              x2={CX + R * Math.sin(θ)}         y2={CY - R * Math.cos(θ)}
-              stroke="#8b5e9e" strokeWidth={1.5} />
-          )
-        })}
+      {/* ── Timeline ── */}
+      {dayTasks.length === 0 ? (
+        <p className={styles.tlEmpty}>Inga uppgifter den här dagen</p>
+      ) : (
+        <ol className={styles.tlList}>
+          {dayTasks.map(({ task, h, m, totalMinutes }, idx) => {
+            const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+            const done    = task.status === 'DONE'
+            const past    = isToday && !done && nowMinutes >= 0 && totalMinutes < nowMinutes
+            const isNext  = isToday && !done && !past && nowInsertBefore === idx
 
-        {Array.from({ length: 12 }, (_, i) => {
-          const h = i + 1
-          const θ = (h / 12) * Math.PI * 2
-          return (
-            <text key={h} x={CX + 78 * Math.sin(θ)} y={CY - 78 * Math.cos(θ)}
-              textAnchor="middle" dominantBaseline="central" fontSize={13} fill="#c8aad8" fontWeight={500}>
-              {h}
-            </text>
-          )
-        })}
+            let stateClass = styles.tlFuture
+            if (done)    stateClass = styles.tlDone
+            else if (past) stateClass = styles.tlPast
+            else if (isNext) stateClass = styles.tlNext
 
-        {showHands && (
-          <>
-            <line x1={CX} y1={CY} x2={CX + 58 * Math.sin(nowH!)} y2={CY - 58 * Math.cos(nowH!)}
-              stroke="#d4b8e0" strokeWidth={4} strokeLinecap="round" />
-            <line x1={CX} y1={CY} x2={CX + 82 * Math.sin(nowM!)} y2={CY - 82 * Math.cos(nowM!)}
-              stroke="#b07cc6" strokeWidth={2.5} strokeLinecap="round" />
-            <circle cx={CX} cy={CY} r={4} fill="#d4b8e0" />
-          </>
-        )}
+            return (
+              <>
+                {/* "Nu" divider before the first upcoming task */}
+                {nowInsertBefore === idx && (
+                  <li key={`now-${idx}`} className={styles.tlNowRow} aria-hidden="true">
+                    <div className={styles.tlNowLine} />
+                    <span className={styles.tlNowBadge}>▶ Nu</span>
+                    <div className={styles.tlNowLine} />
+                  </li>
+                )}
 
-        {right.map(({ task, px, py }, i) => {
-          const cy2 = rightTops[i]
-          const mid = cy2 + CARD_H / 2
-          const fill = cardColor(task, effectiveNow)
-          const label = task.title.length > 14 ? task.title.slice(0, 13) + '…' : task.title
-          return (
-            <a key={task.id} href={`/groups/${groupId}/tasks/${task.id}?occurrenceDate=${dateKey(viewDate)}`} style={{ cursor: 'pointer' }}>
-              <path d={`M ${px},${py} L ${RIGHT_X},${py} L ${RIGHT_X},${mid}`}
-                stroke={fill} strokeWidth={1.2} opacity={0.55} fill="none" />
-              <rect x={RIGHT_X} y={cy2} width={CARD_W} height={CARD_H} rx={6} fill={fill} />
-              <text x={RIGHT_X + CARD_W / 2} y={mid} textAnchor="middle" dominantBaseline="central"
-                fontSize={11} fill="white" fontWeight={600}>{label}</text>
-            </a>
-          )
-        })}
+                <li key={task.id}>
+                  <a
+                    href={`/groups/${groupId}/tasks/${task.id}?occurrenceDate=${dateKey(viewDate)}`}
+                    className={`${styles.tlCard} ${stateClass}`}
+                  >
+                    {/* Time column */}
+                    <div className={styles.tlTime}>{timeStr}</div>
 
-        {left.map(({ task, px, py }, i) => {
-          const cy2 = leftTops[i]
-          const mid = cy2 + CARD_H / 2
-          const fill = cardColor(task, effectiveNow)
-          const label = task.title.length > 14 ? task.title.slice(0, 13) + '…' : task.title
-          return (
-            <a key={task.id} href={`/groups/${groupId}/tasks/${task.id}?occurrenceDate=${dateKey(viewDate)}`} style={{ cursor: 'pointer' }}>
-              <path d={`M ${px},${py} L ${LEFT_X},${py} L ${LEFT_X},${mid}`}
-                stroke={fill} strokeWidth={1.2} opacity={0.55} fill="none" />
-              <rect x={LEFT_X - CARD_W} y={cy2} width={CARD_W} height={CARD_H} rx={6} fill={fill} />
-              <text x={LEFT_X - CARD_W / 2} y={mid} textAnchor="middle" dominantBaseline="central"
-                fontSize={11} fill="white" fontWeight={600}>{label}</text>
-            </a>
-          )
-        })}
+                    {/* Content */}
+                    <div className={styles.tlContent}>
+                      <div className={styles.tlTitle}>{task.title}</div>
+                      {task.description && (
+                        <div className={styles.tlDesc}>{task.description}</div>
+                      )}
+                    </div>
 
-        {[
-          { fill: '#198754', label: 'Utförd' },
-          { fill: '#d97706', label: 'Passerad' },
-          { fill: '#8b5e9e', label: 'Kommande' },
-        ].map(({ fill, label }, i) => (
-          <g key={label} transform={`translate(${10 + i * 105}, ${SVG_H - 14})`}>
-            <rect width={10} height={10} rx={2} fill={fill} y={-5} />
-            <text x={14} fontSize={10} fill="#8b7a9e" dominantBaseline="central">{label}</text>
-          </g>
-        ))}
-      </svg>
+                    {/* Status icon */}
+                    <div className={styles.tlIcon}>
+                      {done ? '✓' : past ? '!' : '→'}
+                    </div>
+                  </a>
+                </li>
+              </>
+            )
+          })}
+
+          {/* "Nu" divider at end if all tasks are in the past */}
+          {isToday && nowInsertBefore === -1 && dayTasks.length > 0 &&
+           dayTasks[dayTasks.length - 1].totalMinutes <= nowMinutes && (
+            <li className={styles.tlNowRow} aria-hidden="true">
+              <div className={styles.tlNowLine} />
+              <span className={styles.tlNowBadge}>▶ Nu</span>
+              <div className={styles.tlNowLine} />
+            </li>
+          )}
+        </ol>
+      )}
     </div>
   )
 }
@@ -547,9 +507,9 @@ export default function TasksPage({ params }: { params: { groupId: string } }) {
           )}
         </div>
 
-        {/* ── Clock view ── */}
+        {/* ── Timeline view ── */}
         <div className={styles.clockSection}>
-          <ClockView tasks={allTasks} groupId={params.groupId} viewDate={viewDate} onShiftDay={shiftDay} />
+          <TimelineView tasks={allTasks} groupId={params.groupId} viewDate={viewDate} onShiftDay={shiftDay} />
         </div>
       </div>
     </div>
