@@ -289,6 +289,7 @@ model Task {
   recurrence    RecurrencePattern @default(NONE)
   recurrenceCron String?          // cron expression for CUSTOM recurrence
   exceptionDates String?          // comma-separated YYYY-MM-DD dates to skip for recurring
+  completedDates String?          // comma-separated YYYY-MM-DD dates of completed occurrences (recurring)
   completedAt   DateTime?
   completionNote String?
   completionPhotoKey String?      // S3 key for completion photo

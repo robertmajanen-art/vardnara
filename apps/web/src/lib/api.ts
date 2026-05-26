@@ -102,6 +102,7 @@ export type Task = {
   recurrence: string
   recurrenceCron?: string | null
   exceptionDates?: string | null
+  completedDates?: string | null
   completedAt?: string | null
   completionNote?: string | null
   createdBy?: { id: string; email: string } | null

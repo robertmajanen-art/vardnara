@@ -153,7 +153,33 @@
   gap: 0.75rem;
 }
 
-.appointmentItem,
+.appointmentItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.appointmentItem:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.aptDateLine {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  color: #7ab3ff;
+  letter-spacing: 0.04em;
+}
+
+.aptMainRow {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
 .taskItem {
   display: flex;
   align-items: baseline;
@@ -177,6 +203,15 @@
 .aptLocation {
   font-size: 0.9rem;
   color: rgba(255, 255, 255, 0.5);
+  padding-left: 4.25rem;
+}
+
+.aptNotes {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.65);
+  padding-left: 4.25rem;
+  font-style: italic;
+  line-height: 1.4;
 }
 
 .errorScreen {

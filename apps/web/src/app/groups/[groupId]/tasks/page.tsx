@@ -256,9 +256,13 @@ function TimelineView({ tasks, groupId, viewDate, onShiftDay }: {
         <ol className={styles.tlList}>
           {dayTasks.map(({ task, h, m, totalMinutes }, idx) => {
             const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-            // For recurring tasks, "done" per-occurrence is handled via exceptionDates (they
-            // disappear from the list). Only non-recurring tasks use status=DONE globally.
-            const done    = task.status === 'DONE' && (!task.recurrence || task.recurrence === 'NONE')
+            // "done" for non-recurring: status=DONE globally.
+            // "done" for recurring: check completedDates for this specific occurrence date.
+            const occurrenceKey = dateKey(viewDate)
+            const done =
+              (task.status === 'DONE' && (!task.recurrence || task.recurrence === 'NONE')) ||
+              (!!task.recurrence && task.recurrence !== 'NONE' &&
+               (task.completedDates ?? '').split(',').filter(Boolean).includes(occurrenceKey))
             const past    = isToday && !done && nowMinutes >= 0 && totalMinutes < nowMinutes
             const isNext  = isToday && !done && !past && nowInsertBefore === idx
 

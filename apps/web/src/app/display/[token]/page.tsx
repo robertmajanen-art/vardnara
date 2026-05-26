@@ -14,6 +14,7 @@ type DisplayData = {
     title: string
     startTime: string
     location?: string | null
+    notes?: string | null
     assignee?: { email: string } | null
   }>
   recurringTasks: Array<{
@@ -158,20 +159,27 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
       {data && (
         <div className={styles.panels}>
           <section className={styles.panel}>
-            <h2 className={styles.panelTitle}>Kommande besök</h2>
+            <h2 className={styles.panelTitle}>Dagens besök</h2>
             {data.appointments.length === 0 ? (
-              <p className={styles.noItems}>Inga besök planerade</p>
+              <p className={styles.noItems}>Inga besök planerade idag</p>
             ) : (
               <ul className={styles.appointmentList}>
-                {data.appointments.map((apt) => (
-                  <li key={apt.id} className={styles.appointmentItem}>
-                    <span className={styles.aptTime}>
-                      {new Date(apt.startTime).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                    <span className={styles.aptTitle}>{apt.title}</span>
-                    {apt.location && <span className={styles.aptLocation}>{apt.location}</span>}
-                  </li>
-                ))}
+                {data.appointments.map((apt) => {
+                  const aptDate = new Date(apt.startTime)
+                  const aptDateStr = aptDate.toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long' })
+                  const aptTimeStr = aptDate.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })
+                  return (
+                    <li key={apt.id} className={styles.appointmentItem}>
+                      <div className={styles.aptDateLine}>{aptDateStr}</div>
+                      <div className={styles.aptMainRow}>
+                        <span className={styles.aptTime}>{aptTimeStr}</span>
+                        <span className={styles.aptTitle}>{apt.title}</span>
+                      </div>
+                      {apt.location && <div className={styles.aptLocation}>{apt.location}</div>}
+                      {apt.notes && <div className={styles.aptNotes}>{apt.notes}</div>}
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </section>

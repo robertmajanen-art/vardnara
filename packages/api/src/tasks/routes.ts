@@ -123,6 +123,31 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
     },
   )
 
+  // PATCH /api/groups/:groupId/tasks/:taskId/complete-occurrence — mark one occurrence done
+  // Adds the date to completedDates (not exceptionDates), so it stays visible but green.
+  fastify.patch<{ Params: TP }>(
+    '/:groupId/tasks/:taskId/complete-occurrence',
+    { onRequest: [fastify.authenticate], preHandler: [mw()] },
+    async (req, reply) => {
+      const { date } = req.body as { date?: string }
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return reply.code(400).send({ message: 'date (YYYY-MM-DD) required' })
+      }
+      const task = await db.task.findUniqueOrThrow({
+        where: { id: req.params.taskId, groupId: req.params.groupId },
+      })
+      const existing = (task.completedDates ?? '').split(',').filter(Boolean)
+      if (!existing.includes(date)) existing.push(date)
+      const updated = await db.task.update({
+        where: { id: req.params.taskId, groupId: req.params.groupId },
+        data: { completedDates: existing.join(',') },
+        include: { assignee: { select: { id: true, email: true } }, createdBy: { select: { id: true, email: true } } },
+      })
+      await createFeedItem(db, fastify.io, req.params.groupId, req.tenant.userId, 'TASK_COMPLETED', { taskId: task.id }, `Uppgift klar: ${task.title} (${date})`)
+      return reply.send(updated)
+    },
+  )
+
   // DELETE /api/groups/:groupId/tasks/:taskId — Supporter+
   fastify.delete<{ Params: TP }>(
     '/:groupId/tasks/:taskId',

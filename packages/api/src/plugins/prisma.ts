@@ -58,6 +58,19 @@ async function applyPendingMigrations(prisma: PrismaClient) {
       `
       console.log('[prisma] Migration applied.')
     }
+
+    // 20260526000002_completed_dates — add completedDates to Task for per-occurrence completion
+    const cdRows = await prisma.$queryRaw<{ column_name: string }[]>`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'Task'
+        AND column_name = 'completedDates'
+    `
+    if (cdRows.length === 0) {
+      console.log('[prisma] Applying migration: 20260526000002_completed_dates')
+      await prisma.$executeRaw`ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS "completedDates" TEXT DEFAULT ''`
+      console.log('[prisma] Migration applied.')
+    }
   } catch (err) {
     console.error('[prisma] Migration error (non-fatal):', err)
   }

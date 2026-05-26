@@ -14,6 +14,7 @@ type Task = {
   recurrence?: string
   recurrenceCron?: string | null
   exceptionDates?: string | null  // comma-separated YYYY-MM-DD dates of skipped occurrences
+  completedDates?: string | null  // comma-separated YYYY-MM-DD dates of completed occurrences
   assignee?: { id: string; email: string } | null
   createdBy: { id: string; email: string }
 }
@@ -116,13 +117,13 @@ export default function TaskDetailPage({ params }: { params: { groupId: string; 
     setCompleting(true)
     try {
       if (task?.recurrence && task.recurrence !== 'NONE') {
-        // Recurring task: mark only this occurrence as done (= skip it)
+        // Recurring task: mark only this occurrence as done via completedDates (stays visible in green)
         const dateToComplete = clockDate ?? dateKey(new Date())
         const updated = await api.patch<Task>(
-          `/api/groups/${params.groupId}/tasks/${params.taskId}/skip`,
+          `/api/groups/${params.groupId}/tasks/${params.taskId}/complete-occurrence`,
           { date: dateToComplete }
         )
-        setTask(t => t ? { ...t, exceptionDates: updated.exceptionDates } : t)
+        setTask(t => t ? { ...t, completedDates: updated.completedDates } : t)
         router.push(`/groups/${params.groupId}/tasks` as never)
       } else {
         // Non-recurring: mark the whole task done

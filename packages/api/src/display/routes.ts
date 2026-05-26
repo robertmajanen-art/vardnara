@@ -104,13 +104,15 @@ export const publicDisplayRoute: FastifyPluginAsync = async (fastify) => {
       })
 
       const now = new Date()
-      const lookaheadEnd = new Date(now.getTime() + displayToken.lookaheadHours * 60 * 60 * 1000)
+      // Show only today's appointments (midnight to midnight local server time)
+      const startOfToday = new Date(now); startOfToday.setHours(0, 0, 0, 0)
+      const endOfToday = new Date(now); endOfToday.setHours(23, 59, 59, 999)
 
       const [appointments, recurringTasks] = await Promise.all([
         db.appointment.findMany({
           where: {
             groupId: displayToken.groupId,
-            startTime: { gte: now, lte: lookaheadEnd },
+            startTime: { gte: startOfToday, lte: endOfToday },
           },
           include: {
             assignee: { select: { id: true, email: true } },
