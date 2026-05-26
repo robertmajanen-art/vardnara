@@ -42,7 +42,13 @@ export default function DisplayPage({ params }: { params: { token: string } }) {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/display/${params.token}`)
+      // Pass local-day boundaries so the server filters appointments using the same
+      // "today" as the calendar (local time), not the server's UTC midnight.
+      const localNow = new Date()
+      const startOfDay = new Date(localNow.getFullYear(), localNow.getMonth(), localNow.getDate(), 0, 0, 0, 0)
+      const endOfDay   = new Date(localNow.getFullYear(), localNow.getMonth(), localNow.getDate(), 23, 59, 59, 999)
+      const url = `${API_BASE}/api/display/${params.token}?from=${encodeURIComponent(startOfDay.toISOString())}&to=${encodeURIComponent(endOfDay.toISOString())}`
+      const res = await fetch(url)
       if (!res.ok) {
         setError('Ogiltig skärmtoken')
         return

@@ -86,8 +86,10 @@ export const displayTokenRoutes: FastifyPluginAsync = async (fastify) => {
 export const publicDisplayRoute: FastifyPluginAsync = async (fastify) => {
   const db = fastify.prisma
 
-  // GET /api/display/:token
-  fastify.get<{ Params: { token: string } }>(
+  // GET /api/display/:token?from=ISO&to=ISO
+  // The client should pass its LOCAL day boundaries (midnight..23:59:59 in local time, as UTC ISO
+  // strings) so that the appointment filter matches the calendar's day boundary exactly.
+  fastify.get<{ Params: { token: string }; Querystring: { from?: string; to?: string } }>(
     '/:token',
     async (req, reply) => {
       const displayToken = await db.displayToken.findUnique({
@@ -104,9 +106,16 @@ export const publicDisplayRoute: FastifyPluginAsync = async (fastify) => {
       })
 
       const now = new Date()
-      // Show only today's appointments (midnight to midnight local server time)
-      const startOfToday = new Date(now); startOfToday.setHours(0, 0, 0, 0)
-      const endOfToday = new Date(now); endOfToday.setHours(23, 59, 59, 999)
+      // Prefer client-supplied day boundaries (local midnight as UTC ISO) so the filter
+      // agrees with the calendar's local-time day grouping regardless of server timezone.
+      // Fall back to server UTC midnight if the client doesn't supply them.
+      const { from: fromParam, to: toParam } = req.query
+      const startOfToday = (fromParam && !isNaN(Date.parse(fromParam)))
+        ? new Date(fromParam)
+        : (() => { const d = new Date(now); d.setHours(0, 0, 0, 0); return d })()
+      const endOfToday = (toParam && !isNaN(Date.parse(toParam)))
+        ? new Date(toParam)
+        : (() => { const d = new Date(now); d.setHours(23, 59, 59, 999); return d })()
 
       const [appointments, recurringTasks] = await Promise.all([
         db.appointment.findMany({

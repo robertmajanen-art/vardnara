@@ -102,8 +102,14 @@ export const feedRoutes: FastifyPluginAsync = async (fastify) => {
           body: parsed.data.body,
         },
       })
-      fastify.io.to(`room:${req.params.groupId}`).emit('feed:comment', comment)
-      return reply.code(201).send(comment)
+      // Resolve author email so callers don't need a separate lookup
+      const author = await db.user.findUnique({
+        where: { id: req.tenant.userId },
+        select: { email: true },
+      })
+      const enriched = { ...comment, authorEmail: author?.email ?? null }
+      fastify.io.to(`room:${req.params.groupId}`).emit('feed:comment', enriched)
+      return reply.code(201).send(enriched)
     },
   )
 }
