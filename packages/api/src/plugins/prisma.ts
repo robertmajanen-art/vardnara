@@ -41,6 +41,23 @@ async function applyPendingMigrations(prisma: PrismaClient) {
       await prisma.$executeRaw`ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS "exceptionDates" TEXT DEFAULT ''`
       console.log('[prisma] Migration applied.')
     }
+
+    // 20260526000001_transport_person — add transportPersonId + transportPersonName to Appointment
+    const tpRows = await prisma.$queryRaw<{ column_name: string }[]>`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'Appointment'
+        AND column_name = 'transportPersonName'
+    `
+    if (tpRows.length === 0) {
+      console.log('[prisma] Applying migration: 20260526000001_transport_person')
+      await prisma.$executeRaw`
+        ALTER TABLE "Appointment"
+          ADD COLUMN IF NOT EXISTS "transportPersonId" TEXT,
+          ADD COLUMN IF NOT EXISTS "transportPersonName" TEXT
+      `
+      console.log('[prisma] Migration applied.')
+    }
   } catch (err) {
     console.error('[prisma] Migration error (non-fatal):', err)
   }

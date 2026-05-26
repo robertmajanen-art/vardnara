@@ -1,12 +1,19 @@
 .page {
   padding: 1.5rem 2rem;
-  max-width: 600px;
+  max-width: 640px;
 }
 
+.pageTitle {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+}
+
+/* ── Sections ── */
 .section {
   background: var(--color-bg);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 1.5rem;
   margin-bottom: 1.5rem;
 }
@@ -23,6 +30,19 @@
   font-weight: 600;
 }
 
+.sectionDesc {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  margin-bottom: 1.25rem;
+  line-height: 1.55;
+}
+
+.memberCount {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+/* ── Buttons ── */
 .editBtn {
   padding: 0.375rem 0.875rem;
   font-size: 0.875rem;
@@ -30,8 +50,8 @@
   border-radius: 6px;
   background: transparent;
   color: var(--color-text);
+  cursor: pointer;
 }
-
 .editBtn:hover { background: var(--color-surface); }
 
 .cancelBtn {
@@ -41,10 +61,11 @@
   background: transparent;
   font-size: 1rem;
   color: var(--color-text);
+  cursor: pointer;
 }
-
 .cancelBtn:hover { background: var(--color-surface); }
 
+/* ── Group info display ── */
 .dl { display: flex; flex-direction: column; gap: 0.75rem; }
 
 .row {
@@ -60,3 +81,348 @@
 }
 
 .row dd { font-weight: 500; }
+
+/* ── Status messages ── */
+.successMsg {
+  color: var(--color-success);
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.errorMsg {
+  color: var(--color-error, #dc2626);
+  font-size: 0.875rem;
+  margin-bottom: 0.75rem;
+}
+
+/* ── Member list ── */
+.memberList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.memberRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.memberInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.memberEmail {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roleBadge {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: #f0e8ff;
+  color: var(--color-primary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.removeBtn {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.removeBtn:hover { border-color: #dc2626; color: #dc2626; }
+
+/* ── Invite form ── */
+.inviteForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.roleGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+@media (max-width: 480px) {
+  .roleGrid { grid-template-columns: 1fr; }
+}
+
+.roleCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.roleCard:hover {
+  border-color: var(--color-primary);
+}
+
+.roleCardActive {
+  border-color: var(--color-primary);
+  background: #f3eaff;
+}
+
+.radioHidden {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.roleCardLabel {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.roleCardDesc {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.emailLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.optional {
+  font-weight: 400;
+  font-size: 0.8125rem;
+}
+
+.emailInput {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  background: var(--color-bg);
+  color: var(--color-text);
+  outline: none;
+}
+.emailInput:focus { border-color: var(--color-primary); }
+
+.inviteBtn {
+  padding: 0.625rem 1.25rem;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  align-self: flex-start;
+}
+.inviteBtn:hover:not(:disabled) { opacity: 0.88; }
+.inviteBtn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ── New invite success box ── */
+.newInviteBox {
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 10px;
+  padding: 1.125rem 1.25rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.newInviteTitle {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #15803d;
+}
+
+.newInviteRole {
+  font-size: 0.875rem;
+  color: #166534;
+}
+
+.linkRow {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.linkInput {
+  flex: 1;
+  min-width: 0;
+  padding: 0.4375rem 0.75rem;
+  border: 1px solid #86efac;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  background: white;
+  color: var(--color-text);
+  font-family: monospace;
+}
+
+.copyBtn {
+  padding: 0.4375rem 0.875rem;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+.copyBtn:hover { opacity: 0.88; }
+
+.newInviteNote {
+  font-size: 0.8125rem;
+  color: #166534;
+}
+
+/* ── Pending invites ── */
+.pendingSection { margin-top: 1rem; }
+
+.pendingTitle {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-bottom: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pendingList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.pendingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.pendingInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.pendingEmail {
+  font-size: 0.875rem;
+  color: var(--color-text);
+}
+
+.pendingExpiry {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.pendingActions {
+  display: flex;
+  gap: 0.375rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.revokeBtn {
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.revokeBtn:hover { border-color: #dc2626; color: #dc2626; }
+.revokeBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Display tokens ── */
+.displayList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.displayRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.displayInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.displayLabel {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.displayLastSeen {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.displayForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}

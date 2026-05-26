@@ -23,7 +23,8 @@ export default function LoginPage() {
         { email, password },
       )
       saveTokens(res.accessToken, res.refreshToken)
-      window.location.href = '/groups'
+      const returnTo = new URLSearchParams(window.location.search).get('returnTo')
+      window.location.href = returnTo ?? '/groups'
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Inloggning misslyckades'
       setError(msg)

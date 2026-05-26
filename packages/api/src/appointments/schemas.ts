@@ -14,6 +14,8 @@ export const CreateAppointmentBody = z.object({
   reminderMinutes: z.array(z.number().int().positive()).max(5).optional(),
   recurrence: RecurrenceEnum.default('NONE'),
   recurrenceCron: z.string().max(120).optional(),
+  transportPersonId: z.string().uuid().optional(),
+  transportPersonName: z.string().max(200).optional(),
 })
 
 export const UpdateAppointmentBody = z.object({
@@ -25,6 +27,8 @@ export const UpdateAppointmentBody = z.object({
   endTime: z.string().datetime({ offset: true }).nullable().optional(),
   recurrence: RecurrenceEnum.optional(),
   recurrenceCron: z.string().max(120).nullable().optional(),
+  transportPersonId: z.string().uuid().nullable().optional(),
+  transportPersonName: z.string().max(200).nullable().optional(),
 })
 
 export const AssignAppointmentBody = z.object({

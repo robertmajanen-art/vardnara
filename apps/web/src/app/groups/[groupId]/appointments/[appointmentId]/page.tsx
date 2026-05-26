@@ -16,6 +16,8 @@ type Appointment = {
   assignee?: { id: string; email: string } | null
   assigneeAccepted?: boolean | null
   recurrence?: string | null
+  transportPersonId?: string | null
+  transportPersonName?: string | null
   createdBy: { id: string; email: string }
 }
 
@@ -139,6 +141,13 @@ export default function AppointmentDetailPage({ params }: { params: { groupId: s
                 ({acceptedLabel})
               </span>
             </span>
+          </div>
+        )}
+
+        {apt.transportPersonName && (
+          <div className={styles.field}>
+            <span className={styles.fieldLabel}>Skjuts / följer med</span>
+            <span className={styles.fieldValue}>🚗 {apt.transportPersonName}</span>
           </div>
         )}
 

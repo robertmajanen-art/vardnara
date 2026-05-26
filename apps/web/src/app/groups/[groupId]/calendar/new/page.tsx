@@ -131,6 +131,8 @@ function roundTo10Min(localDt: string): string {
   return localStr(new Date(y, mo - 1, d, h, Math.round(mi / 10) * 10))
 }
 
+type Member = { user: { id: string; email: string } }
+
 export default function NewAppointmentPage({ params }: { params: { groupId: string } }) {
   const router = useRouter()
 
@@ -143,6 +145,11 @@ export default function NewAppointmentPage({ params }: { params: { groupId: stri
   const [startTime, setStartTime] = useState(startDefault)
   const [endTime, setEndTime] = useState(endDefault)
   const [notes, setNotes] = useState('')
+
+  // Transport person
+  const [members, setMembers] = useState<Member[]>([])
+  const [transportSel, setTransportSel] = useState('') // '' | UUID | 'other'
+  const [transportText, setTransportText] = useState('')
 
   // Recurrence
   const [recType, setRecType] = useState<RecType>('NONE')
@@ -170,6 +177,12 @@ export default function NewAppointmentPage({ params }: { params: { groupId: stri
     if (p.get('location')) setLocation(p.get('location')!)
     if (p.get('notes')) setNotes(p.get('notes')!)
   }, [])
+
+  useEffect(() => {
+    api.get<Member[]>(`/api/groups/${params.groupId}/members`)
+      .then(setMembers)
+      .catch(() => {})
+  }, [params.groupId])
 
   function toggleDay(cron: number) {
     setSelectedDays(prev => { const n = new Set(prev); n.has(cron) ? n.delete(cron) : n.add(cron); return n })
@@ -212,6 +225,16 @@ export default function NewAppointmentPage({ params }: { params: { groupId: stri
         : undefined
       const recurrence = (recType === 'WEEKLY' && weeklyInterval > 1) ? 'CUSTOM' : recType
 
+      // Resolve transport person
+      let tpId: string | undefined
+      let tpName: string | undefined
+      if (transportSel && transportSel !== 'other') {
+        tpId = transportSel
+        tpName = members.find(m => m.user.id === transportSel)?.user.email
+      } else if (transportSel === 'other' && transportText.trim()) {
+        tpName = transportText.trim()
+      }
+
       await api.post(`/api/groups/${params.groupId}/appointments`, {
         type,
         title,
@@ -221,6 +244,8 @@ export default function NewAppointmentPage({ params }: { params: { groupId: stri
         ...(notes ? { notes } : {}),
         recurrence,
         ...(cron ? { recurrenceCron: cron } : {}),
+        ...(tpId ? { transportPersonId: tpId } : {}),
+        ...(tpName ? { transportPersonName: tpName } : {}),
       })
       router.push(`/groups/${params.groupId}/calendar` as never)
     } catch (err: unknown) {
@@ -290,6 +315,30 @@ export default function NewAppointmentPage({ params }: { params: { groupId: stri
             style={{ resize: 'vertical' }}
           />
         </label>
+
+        {/* ── Transport person ── */}
+        <label className={styles.label}>
+          Vem skjutsar / följer med? (valfritt)
+          <select value={transportSel} onChange={e => setTransportSel(e.target.value)} className={styles.input}>
+            <option value="">— Ingen —</option>
+            {members.map(m => (
+              <option key={m.user.id} value={m.user.id}>{m.user.email}</option>
+            ))}
+            <option value="other">Annan person...</option>
+          </select>
+        </label>
+        {transportSel === 'other' && (
+          <label className={styles.label}>
+            Namn på personen
+            <input
+              type="text"
+              value={transportText}
+              onChange={e => setTransportText(e.target.value)}
+              className={styles.input}
+              placeholder="t.ex. Mamma, Granne Erik"
+            />
+          </label>
+        )}
 
         {/* ── Recurrence ── */}
         <div className={pageStyles.section}>

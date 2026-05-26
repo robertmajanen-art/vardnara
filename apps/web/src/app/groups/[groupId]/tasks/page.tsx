@@ -256,7 +256,9 @@ function TimelineView({ tasks, groupId, viewDate, onShiftDay }: {
         <ol className={styles.tlList}>
           {dayTasks.map(({ task, h, m, totalMinutes }, idx) => {
             const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-            const done    = task.status === 'DONE'
+            // For recurring tasks, "done" per-occurrence is handled via exceptionDates (they
+            // disappear from the list). Only non-recurring tasks use status=DONE globally.
+            const done    = task.status === 'DONE' && (!task.recurrence || task.recurrence === 'NONE')
             const past    = isToday && !done && nowMinutes >= 0 && totalMinutes < nowMinutes
             const isNext  = isToday && !done && !past && nowInsertBefore === idx
 
@@ -487,7 +489,9 @@ export default function TasksPage({ params }: { params: { groupId: string } }) {
                       )}
                     </a>
                     <div className={styles.itemActions}>
-                      {active && (
+                      {/* Only show complete button for non-recurring tasks — recurring ones
+                          are completed per-occurrence from the timeline / detail page */}
+                      {active && (!task.recurrence || task.recurrence === 'NONE') && (
                         <button className={styles.completeBtn}
                           onClick={() => handleComplete(task.id)}
                           disabled={completing === task.id}

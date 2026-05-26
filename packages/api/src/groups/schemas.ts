@@ -14,16 +14,12 @@ export const UpdateGroupBody = z.object({
   careType: z.enum(['DEMENTIA', 'NPF', 'OTHER']).optional(),
 })
 
-export const CreateInviteBody = z
-  .object({
-    email: z.string().email().optional(),
-    phone: z.string().min(8).optional(),
-    role: z.enum(['SUPPORTER', 'OBSERVER', 'EXTERNAL']),
-  })
-  .refine((d) => d.email ?? d.phone, {
-    message: 'E-postadress eller telefonnummer krävs',
-  })
+export const CreateInviteBody = z.object({
+  email: z.string().email().optional(),
+  phone: z.string().min(8).optional(),
+  role: z.enum(['LEAD', 'SUPPORTER', 'OBSERVER', 'EXTERNAL']),
+})
 
 export const UpdateMemberRoleBody = z.object({
-  role: z.enum(['SUPPORTER', 'OBSERVER', 'EXTERNAL']),
+  role: z.enum(['LEAD', 'SUPPORTER', 'OBSERVER', 'EXTERNAL']),
 })

@@ -115,8 +115,20 @@ export default function TaskDetailPage({ params }: { params: { groupId: string; 
   async function handleComplete() {
     setCompleting(true)
     try {
-      await api.patch(`/api/groups/${params.groupId}/tasks/${params.taskId}/complete`, {})
-      setTask(t => (t ? { ...t, status: 'DONE' } : t))
+      if (task?.recurrence && task.recurrence !== 'NONE') {
+        // Recurring task: mark only this occurrence as done (= skip it)
+        const dateToComplete = clockDate ?? dateKey(new Date())
+        const updated = await api.patch<Task>(
+          `/api/groups/${params.groupId}/tasks/${params.taskId}/skip`,
+          { date: dateToComplete }
+        )
+        setTask(t => t ? { ...t, exceptionDates: updated.exceptionDates } : t)
+        router.push(`/groups/${params.groupId}/tasks` as never)
+      } else {
+        // Non-recurring: mark the whole task done
+        await api.patch(`/api/groups/${params.groupId}/tasks/${params.taskId}/complete`, {})
+        setTask(t => (t ? { ...t, status: 'DONE' } : t))
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Något gick fel.')
     } finally {
@@ -285,7 +297,11 @@ export default function TaskDetailPage({ params }: { params: { groupId: string; 
         <div className={styles.actions}>
           {active && (
             <button className={styles.btnPrimary} onClick={handleComplete} disabled={completing}>
-              {completing ? 'Markerar...' : '✓ Markera som klar'}
+              {completing
+                ? 'Markerar...'
+                : (task.recurrence && task.recurrence !== 'NONE')
+                  ? `✓ Markera klar${clockDate ? ` (${clockDate})` : ' – detta tillfälle'}`
+                  : '✓ Markera som klar'}
             </button>
           )}
           <a href={`/groups/${params.groupId}/tasks/${params.taskId}/edit`} className={styles.btnSecondary}>

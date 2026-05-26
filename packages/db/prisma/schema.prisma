@@ -255,6 +255,8 @@ model Appointment {
   recurrence      RecurrencePattern @default(NONE)
   recurrenceCron  String?           // cron expression (or "BIWEEKLY mm HH * * days[ UNTIL:date]")
   exceptionDates  String?           // comma-separated YYYY-MM-DD dates to skip for recurring
+  transportPersonId   String?       // UUID of the group member who provides transport (denormalised)
+  transportPersonName String?       // display name (member email or free-text)
   assigneeAccepted Boolean?       // null = pending, true = accepted, false = declined
   assigneeNote    String?         // note from assignee on accept/decline
   outcomeNotes    String?         // post-meeting outcome added by assignee

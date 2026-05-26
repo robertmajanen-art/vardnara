@@ -18,6 +18,7 @@ type Appointment = {
   recurrence?: string | null
   recurrenceCron?: string | null
   exceptionDates?: string | null
+  transportPersonName?: string | null
   createdBy?: { id: string; email: string } | null
   _virtual?: boolean // projected virtual occurrence (not from DB directly)
 }
@@ -294,6 +295,7 @@ export default function CalendarPage({ params }: { params: { groupId: string } }
                         <div className={styles.aptTime} style={{ color }}>{timeStr}</div>
                         <div className={styles.aptTitle}>{apt.title}</div>
                         {apt.location && <div className={styles.aptMeta}>📍 {apt.location}</div>}
+                        {apt.transportPersonName && <div className={styles.aptMeta}>🚗 {apt.transportPersonName}</div>}
                         {apt.notes && <div className={styles.aptNotes}>{apt.notes}</div>}
                         <div className={styles.aptMeta} style={{ marginTop: '0.25rem' }}>
                           {isRecurring && <span>🔄 Återkommande · </span>}

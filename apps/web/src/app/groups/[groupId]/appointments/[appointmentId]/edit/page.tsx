@@ -32,7 +32,11 @@ type ExistingAppointment = {
   endTime?: string | null
   recurrence?: string | null
   recurrenceCron?: string | null
+  transportPersonId?: string | null
+  transportPersonName?: string | null
 }
+
+type Member = { user: { id: string; email: string } }
 
 function localStr(d: Date): string {
   const p = (n: number) => String(n).padStart(2, '0')
@@ -156,6 +160,16 @@ export default function EditAppointmentPage({ params }: { params: { groupId: str
   const [loading, setLoading]     = useState(true)
   const [saving, setSaving]       = useState(false)
   const [error, setError]         = useState('')
+  // Transport person
+  const [members, setMembers]     = useState<Member[]>([])
+  const [transportSel, setTransportSel]   = useState('') // '' | UUID | 'other'
+  const [transportText, setTransportText] = useState('')
+
+  useEffect(() => {
+    api.get<Member[]>(`/api/groups/${params.groupId}/members`)
+      .then(setMembers)
+      .catch(() => {})
+  }, [params.groupId])
 
   useEffect(() => {
     api.get<ExistingAppointment>(`/api/groups/${params.groupId}/appointments/${params.appointmentId}`)
@@ -185,6 +199,14 @@ export default function EditAppointmentPage({ params }: { params: { groupId: str
             const { date } = splitDt(localStr(new Date(apt.startTime)))
             setStartTime(`${date}T${HH.padStart(2, '0')}:${mm.padStart(2, '0')}`)
           }
+        }
+
+        // Pre-fill transport person
+        if (apt.transportPersonId) {
+          setTransportSel(apt.transportPersonId)
+        } else if (apt.transportPersonName) {
+          setTransportSel('other')
+          setTransportText(apt.transportPersonName)
         }
       })
       .catch(() => setError('Kunde inte ladda besök.'))
@@ -227,6 +249,16 @@ export default function EditAppointmentPage({ params }: { params: { groupId: str
         : null
       const recurrence = (recType === 'WEEKLY' && weeklyInterval > 1) ? 'CUSTOM' : recType
 
+      // Resolve transport person
+      let tpId: string | null = null
+      let tpName: string | null = null
+      if (transportSel && transportSel !== 'other') {
+        tpId = transportSel
+        tpName = members.find(m => m.user.id === transportSel)?.user.email ?? null
+      } else if (transportSel === 'other' && transportText.trim()) {
+        tpName = transportText.trim()
+      }
+
       await api.patch(`/api/groups/${params.groupId}/appointments/${params.appointmentId}`, {
         type, title,
         ...(location ? { location } : { location: null }),
@@ -235,6 +267,8 @@ export default function EditAppointmentPage({ params }: { params: { groupId: str
         ...(notes ? { notes } : { notes: null }),
         recurrence,
         recurrenceCron: cron,
+        transportPersonId: tpId,
+        transportPersonName: tpName,
       })
       router.push(`/groups/${params.groupId}/appointments/${params.appointmentId}` as never)
     } catch (err: unknown) {
@@ -290,6 +324,25 @@ export default function EditAppointmentPage({ params }: { params: { groupId: str
             className={formStyles.input} rows={4} placeholder="Förberedelser, vad som ska tas upp..."
             style={{ resize: 'vertical' }} />
         </label>
+
+        {/* ── Transport person ── */}
+        <label className={formStyles.label}>
+          Vem skjutsar / följer med? (valfritt)
+          <select value={transportSel} onChange={e => setTransportSel(e.target.value)} className={formStyles.input}>
+            <option value="">— Ingen —</option>
+            {members.map(m => (
+              <option key={m.user.id} value={m.user.id}>{m.user.email}</option>
+            ))}
+            <option value="other">Annan person...</option>
+          </select>
+        </label>
+        {transportSel === 'other' && (
+          <label className={formStyles.label}>
+            Namn på personen
+            <input type="text" value={transportText} onChange={e => setTransportText(e.target.value)}
+              className={formStyles.input} placeholder="t.ex. Mamma, Granne Erik" />
+          </label>
+        )}
 
         {/* ── Recurrence ── */}
         <div className={recStyles.section}>

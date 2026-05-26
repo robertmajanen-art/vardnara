@@ -66,12 +66,14 @@ export const appointmentRoutes: FastifyPluginAsync = async (fastify) => {
       if (!parsed.success) {
         return reply.code(400).send({ statusCode: 400, error: 'Bad Request', message: parsed.error.issues[0]?.message ?? 'Ogiltig inmatning' })
       }
-      const { reminderMinutes, assigneeId, ...data } = parsed.data
+      const { reminderMinutes, assigneeId, transportPersonId, transportPersonName, ...data } = parsed.data
       const appointment = await db.appointment.create({
         data: {
           groupId: req.params.groupId,
           createdById: req.tenant.userId,
           assigneeId: assigneeId ?? null,
+          transportPersonId: transportPersonId ?? null,
+          transportPersonName: transportPersonName ?? null,
           ...data,
           startTime: new Date(data.startTime),
           endTime: data.endTime ? new Date(data.endTime) : undefined,
@@ -111,13 +113,15 @@ export const appointmentRoutes: FastifyPluginAsync = async (fastify) => {
       if (!parsed.success) {
         return reply.code(400).send({ statusCode: 400, error: 'Bad Request', message: parsed.error.issues[0]?.message ?? 'Ogiltig inmatning' })
       }
-      const { startTime, endTime, ...rest } = parsed.data
+      const { startTime, endTime, transportPersonId, transportPersonName, ...rest } = parsed.data
       const appointment = await db.appointment.update({
         where: { id: req.params.appointmentId, groupId: req.params.groupId },
         data: {
           ...rest,
           ...(startTime !== undefined && { startTime: new Date(startTime) }),
           ...(endTime !== undefined && { endTime: endTime ? new Date(endTime) : null }),
+          ...(transportPersonId !== undefined && { transportPersonId }),
+          ...(transportPersonName !== undefined && { transportPersonName }),
         },
       })
       return reply.send(appointment)
