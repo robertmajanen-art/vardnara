@@ -145,8 +145,24 @@ export default function CalendarPage({ params }: { params: { groupId: string } }
   const [clientNow, setClientNow] = useState<Date | null>(null)
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialog>(null)
   const todayRef = useRef<HTMLElement>(null)
+  const [myRole, setMyRole] = useState<string | null>(null)
 
   useEffect(() => { setClientNow(new Date()) }, [])
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('accessToken')
+      if (raw) {
+        const payload = JSON.parse(atob(raw.split('.')[1]!)) as { sub: string }
+        api.get<Array<{ userId: string; role: string }>>(`/api/groups/${params.groupId}/members`)
+          .then(members => {
+            const me = members.find(m => m.userId === payload.sub)
+            if (me) setMyRole(me.role)
+          })
+          .catch(() => {})
+      }
+    } catch {}
+  }, [params.groupId])
 
   function openDeleteDialog(apt: Appointment) {
     const isRecurring = apt.recurrence && apt.recurrence !== 'NONE'
@@ -302,15 +318,17 @@ export default function CalendarPage({ params }: { params: { groupId: string } }
                           {apt.createdBy && <span>Skapad av: {apt.createdBy.email}</span>}
                         </div>
                       </a>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flexShrink: 0 }}>
-                        <a href={`/groups/${params.groupId}/appointments/${apt.id}/edit`}
-                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '2rem', height: '2rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text-muted)', fontSize: '0.8125rem', textDecoration: 'none' }}
-                          title="Redigera">✏️</a>
-                        <button
-                          onClick={() => openDeleteDialog(apt)}
-                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '2rem', height: '2rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text-muted)', fontSize: '0.8125rem', cursor: 'pointer' }}
-                          title="Ta bort">🗑</button>
-                      </div>
+                      {(myRole === 'LEAD' || myRole === 'SUPPORTER') && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flexShrink: 0 }}>
+                          <a href={`/groups/${params.groupId}/appointments/${apt.id}/edit`}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '2rem', height: '2rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text-muted)', fontSize: '0.8125rem', textDecoration: 'none' }}
+                            title="Redigera">✏️</a>
+                          <button
+                            onClick={() => openDeleteDialog(apt)}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '2rem', height: '2rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text-muted)', fontSize: '0.8125rem', cursor: 'pointer' }}
+                            title="Ta bort">🗑</button>
+                        </div>
+                      )}
                     </li>
                   )
                 })}

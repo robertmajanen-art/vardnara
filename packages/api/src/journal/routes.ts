@@ -65,7 +65,13 @@ export const journalRoutes: FastifyPluginAsync = async (fastify) => {
     { onRequest: [fastify.authenticate], preHandler: [tenant] },
     async (request, reply) => {
       const { groupId, id } = request.params
-      const entry = await db.journalEntry.findFirst({ where: { id, groupId } })
+      const entry = await db.journalEntry.findFirst({
+        where: { id, groupId },
+        include: {
+          author: { select: { id: true, email: true } },
+          feedItems: { select: { id: true }, take: 1, orderBy: { createdAt: 'asc' } },
+        },
+      })
       if (!entry) return reply.code(404).send({ statusCode: 404, error: 'Not Found', message: 'Dagbokspost hittades inte' })
       return entry
     },

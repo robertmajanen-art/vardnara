@@ -73,6 +73,7 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
         include: {
           assignee: { select: { id: true, email: true } },
           createdBy: { select: { id: true, email: true } },
+          feedItems: { select: { id: true }, take: 1, orderBy: { createdAt: 'asc' } },
         },
       })
       return reply.send(task)

@@ -39,6 +39,24 @@ export default function JournalPage({ params }: { params: { groupId: string } })
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('')
+  const [myRole, setMyRole] = useState<string | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('accessToken')
+      if (raw) {
+        const payload = JSON.parse(atob(raw.split('.')[1]!)) as { sub: string }
+        setCurrentUserId(payload.sub)
+        api.get<Array<{ userId: string; role: string }>>(`/api/groups/${params.groupId}/members`)
+          .then(members => {
+            const me = members.find(m => m.userId === payload.sub)
+            if (me) setMyRole(me.role)
+          })
+          .catch(() => {})
+      }
+    } catch {}
+  }, [params.groupId])
 
   async function handleDelete(entryId: string) {
     if (!window.confirm('Ta bort dagboksposten permanent?')) return
@@ -122,11 +140,13 @@ export default function JournalPage({ params }: { params: { groupId: string } })
                   </div>
                 )}
               </a>
-              <div className={styles.itemActions}>
-                <a href={`/groups/${params.groupId}/journal/${e.id}/edit`} className={styles.iconBtn} title="Redigera">✏️</a>
-                <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
-                  onClick={() => handleDelete(e.id)} title="Ta bort">🗑</button>
-              </div>
+              {(myRole === 'LEAD' || myRole === 'SUPPORTER') && (
+                <div className={styles.itemActions}>
+                  <a href={`/groups/${params.groupId}/journal/${e.id}/edit`} className={styles.iconBtn} title="Redigera">✏️</a>
+                  <button className={`${styles.iconBtn} ${styles.iconBtnDanger}`}
+                    onClick={() => handleDelete(e.id)} title="Ta bort">🗑</button>
+                </div>
+              )}
             </li>
           ))}
         </ul>

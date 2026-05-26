@@ -17,6 +17,94 @@ type Task = {
   completedDates?: string | null  // comma-separated YYYY-MM-DD dates of completed occurrences
   assignee?: { id: string; email: string } | null
   createdBy: { id: string; email: string }
+  feedItems?: Array<{ id: string }>
+}
+
+type Comment = {
+  id: string
+  body: string
+  authorId: string
+  authorEmail?: string | null
+  createdAt: string
+}
+
+type Member = { userId: string; role: string; user: { id: string; email: string } }
+
+const fmtShort = new Intl.DateTimeFormat('sv-SE', { dateStyle: 'short', timeStyle: 'short' })
+
+function CommentsSection({ groupId, feedItemId }: { groupId: string; feedItemId: string }) {
+  const [comments, setComments] = useState<Comment[]>([])
+  const [loadingComments, setLoadingComments] = useState(true)
+  const [newComment, setNewComment] = useState('')
+  const [posting, setPosting] = useState(false)
+  const [commentError, setCommentError] = useState('')
+
+  useEffect(() => {
+    api.get<Comment[]>(`/api/groups/${groupId}/feed/${feedItemId}/comments`)
+      .then(setComments)
+      .catch(() => {})
+      .finally(() => setLoadingComments(false))
+  }, [groupId, feedItemId])
+
+  async function submitComment(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newComment.trim()) return
+    setPosting(true)
+    setCommentError('')
+    try {
+      const comment = await api.post<Comment>(
+        `/api/groups/${groupId}/feed/${feedItemId}/comments`,
+        { body: newComment.trim() },
+      )
+      setComments(prev => [...prev, comment])
+      setNewComment('')
+    } catch (err: unknown) {
+      setCommentError(err instanceof Error ? err.message : 'Kunde inte skicka kommentaren.')
+    } finally {
+      setPosting(false)
+    }
+  }
+
+  // Import detail.module.css styles are from parent — use inline styles here
+  return (
+    <div style={{ marginTop: 0 }}>
+      <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.75rem' }}>Kommentarer</h3>
+      {loadingComments ? (
+        <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>Laddar kommentarer...</p>
+      ) : comments.length === 0 ? (
+        <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>Inga kommentarer än. Var först!</p>
+      ) : (
+        <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.625rem', marginBottom: '1rem' }}>
+          {comments.map(c => (
+            <li key={c.id} style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.75rem 1rem' }}>
+              <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', marginBottom: '0.25rem' }}>
+                {c.authorEmail ?? c.authorId} · {fmtShort.format(new Date(c.createdAt))}
+              </div>
+              <div style={{ fontSize: '0.9375rem', lineHeight: 1.5 }}>{c.body}</div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form onSubmit={submitComment} style={{ display: 'flex', gap: '0.5rem' }}>
+        <input
+          type="text"
+          value={newComment}
+          onChange={e => setNewComment(e.target.value)}
+          placeholder="Skriv en kommentar..."
+          style={{ flex: 1, padding: '0.5rem 0.75rem', border: '1px solid var(--color-border)', borderRadius: 6, fontSize: '0.9375rem', fontFamily: 'inherit', outline: 'none' }}
+          maxLength={2000}
+        />
+        <button
+          type="submit"
+          disabled={posting || !newComment.trim()}
+          style={{ padding: '0.5rem 1rem', background: 'var(--color-primary)', color: 'white', border: 'none', borderRadius: 6, fontSize: '0.9375rem', fontWeight: 500, cursor: 'pointer', opacity: (posting || !newComment.trim()) ? 0.65 : 1 }}
+        >
+          {posting ? '...' : 'Skicka'}
+        </button>
+      </form>
+      {commentError && <p style={{ color: 'var(--color-error, #dc2626)', fontSize: '0.875rem', marginTop: '0.5rem' }}>{commentError}</p>}
+    </div>
+  )
 }
 
 const DAY_MAP: Record<number, string> = {
@@ -104,6 +192,30 @@ export default function TaskDetailPage({ params }: { params: { groupId: string; 
   const [deleteDialog, setDeleteDialog] = useState(false)
   const [skipDate, setSkipDate] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [myRole, setMyRole] = useState<string | null>(null)
+
+  // Decode JWT to get current user ID
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('accessToken')
+      if (raw) {
+        const payload = JSON.parse(atob(raw.split('.')[1]!)) as { sub: string }
+        setCurrentUserId(payload.sub)
+      }
+    } catch {}
+  }, [])
+
+  // Get current user's role in this group
+  useEffect(() => {
+    if (!currentUserId) return
+    api.get<Member[]>(`/api/groups/${params.groupId}/members`)
+      .then(members => {
+        const me = members.find(m => m.userId === currentUserId)
+        if (me) setMyRole(me.role)
+      })
+      .catch(() => {})
+  }, [currentUserId, params.groupId])
 
   useEffect(() => {
     api
@@ -182,6 +294,8 @@ export default function TaskDetailPage({ params }: { params: { groupId: string; 
 
   const active = task.status !== 'DONE'
   const rec = formatRecurrence(task)
+  const canEditDelete = myRole === 'LEAD' || myRole === 'SUPPORTER'
+  const feedItemId = task.feedItems?.[0]?.id
 
   return (
     <div className={styles.page}>
@@ -296,7 +410,7 @@ export default function TaskDetailPage({ params }: { params: { groupId: string; 
         </div>
 
         <div className={styles.actions}>
-          {active && (
+          {active && canEditDelete && (
             <button className={styles.btnPrimary} onClick={handleComplete} disabled={completing}>
               {completing
                 ? 'Markerar...'
@@ -305,15 +419,27 @@ export default function TaskDetailPage({ params }: { params: { groupId: string; 
                   : '✓ Markera som klar'}
             </button>
           )}
-          <a href={`/groups/${params.groupId}/tasks/${params.taskId}/edit`} className={styles.btnSecondary}>
-            ✏️ Redigera
-          </a>
-          <button className={styles.btnDanger} onClick={requestDelete} disabled={deleting}>
-            {deleting ? 'Tar bort...' : '🗑 Ta bort'}
-          </button>
+          {canEditDelete && (
+            <>
+              <a href={`/groups/${params.groupId}/tasks/${params.taskId}/edit`} className={styles.btnSecondary}>
+                ✏️ Redigera
+              </a>
+              <button className={styles.btnDanger} onClick={requestDelete} disabled={deleting}>
+                {deleting ? 'Tar bort...' : '🗑 Ta bort'}
+              </button>
+            </>
+          )}
         </div>
 
         {error && <p className={styles.error}>{error}</p>}
+      </div>
+
+      {/* Comments — visible to all members */}
+      <div className={styles.card} style={{ marginTop: '1rem' }}>
+        {feedItemId
+          ? <CommentsSection groupId={params.groupId} feedItemId={feedItemId} />
+          : <p style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>Kommentarer är inte tillgängliga för den här uppgiften.</p>
+        }
       </div>
     </div>
   )

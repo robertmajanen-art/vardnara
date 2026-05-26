@@ -75,7 +75,14 @@ export const feedRoutes: FastifyPluginAsync = async (fastify) => {
         where: { feedItemId: req.params.feedItemId },
         orderBy: { createdAt: 'asc' },
       })
-      return reply.send(comments)
+      // Enrich with author emails (FeedComment has no direct User relation)
+      const authorIds = [...new Set(comments.map(c => c.authorId))]
+      const authors = await db.user.findMany({
+        where: { id: { in: authorIds } },
+        select: { id: true, email: true },
+      })
+      const authorMap = new Map(authors.map(a => [a.id, a.email]))
+      return reply.send(comments.map(c => ({ ...c, authorEmail: authorMap.get(c.authorId) ?? null })))
     },
   )
 

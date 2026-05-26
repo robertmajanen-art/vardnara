@@ -98,6 +98,7 @@ export const appointmentRoutes: FastifyPluginAsync = async (fastify) => {
           assignee: { select: { id: true, email: true } },
           createdBy: { select: { id: true, email: true } },
           reminders: true,
+          feedItems: { select: { id: true }, take: 1, orderBy: { createdAt: 'asc' } },
         },
       })
       return reply.send(appointment)
