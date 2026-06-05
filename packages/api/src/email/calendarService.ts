@@ -1,10 +1,13 @@
-// ── Calendar invite email sender ──────────────────────────────────────────────
-// Sends iCal (.ics) attachments to eligible group members via the group's
-// own SMTP configuration. Silently no-ops if no config is set.
+// ── Calendar invite email sender (via Resend) ─────────────────────────────────
+// Sends iCal (.ics) attachments to eligible group members.
+// Requires RESEND_API_KEY env var; silently no-ops if unset.
 
-import nodemailer from 'nodemailer'
+import { Resend } from 'resend'
 import type { PrismaClient } from '@prisma/client'
 import { buildIcs, type IcsMethod } from './ical'
+
+const resend = process.env['RESEND_API_KEY'] ? new Resend(process.env['RESEND_API_KEY']) : null
+const FROM   = process.env['RESEND_FROM'] ?? 'VårdNära <onboarding@resend.dev>'
 
 type CalendarInviteParams = {
   appointment: {
@@ -26,8 +29,7 @@ type CalendarInviteParams = {
 }
 
 /**
- * Send iCal calendar invites to all LEAD / SUPPORTER / OBSERVER members of the
- * group. Requires the group to have a valid EmailConfig row.
+ * Send iCal calendar invites to all LEAD / SUPPORTER / OBSERVER members.
  *
  * Never throws — errors are logged but do not affect the HTTP response.
  */
@@ -36,11 +38,12 @@ export async function sendCalendarInvites(
   params: CalendarInviteParams,
 ): Promise<void> {
   try {
-    // 1. Load the group's SMTP config
-    const config = await db.emailConfig.findUnique({ where: { groupId: params.groupId } })
-    if (!config || !config.host || !config.username || !config.password) return
+    if (!resend) {
+      console.info('[calendar] RESEND_API_KEY not set — skipping calendar invite')
+      return
+    }
 
-    // 2. Fetch eligible member emails
+    // Fetch eligible member emails
     const memberships = await db.membership.findMany({
       where: {
         groupId: params.groupId,
@@ -50,7 +53,7 @@ export async function sendCalendarInvites(
     })
     if (memberships.length === 0) return
 
-    // 3. Build the iCal payload
+    // Build the iCal payload
     const icsContent = buildIcs(
       {
         id: params.appointment.id,
@@ -67,35 +70,21 @@ export async function sendCalendarInvites(
       params.sequence ?? 0,
     )
 
-    // 4. Create transporter
-    const transport = nodemailer.createTransport({
-      host: config.host,
-      port: config.port,
-      secure: config.secure,
-      auth: { user: config.username, pass: config.password },
-    })
-
-    // 5. Build email content
-    const isCancel = params.method === 'CANCEL'
-    const subject = isCancel
+    const isCancel  = params.method === 'CANCEL'
+    const subject   = isCancel
       ? `Inställt: ${params.appointment.title}`
       : `Kalenderinbjudan: ${params.appointment.title}`
 
     const startDate = new Date(params.appointment.startTime)
-    const dateStr = new Intl.DateTimeFormat('sv-SE', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      hour: '2-digit',
-      minute: '2-digit',
+    const dateStr   = new Intl.DateTimeFormat('sv-SE', {
+      weekday: 'long', day: 'numeric', month: 'long',
+      hour: '2-digit', minute: '2-digit',
     }).format(startDate)
-
     const endStr = params.appointment.endTime
       ? new Intl.DateTimeFormat('sv-SE', { hour: '2-digit', minute: '2-digit' }).format(
           new Date(params.appointment.endTime),
         )
       : null
-
     const timeLabel = endStr ? `${dateStr}–${endStr}` : dateStr
 
     const html = isCancel
@@ -111,25 +100,23 @@ export async function sendCalendarInvites(
          <p>Se bifogad kalenderinbjudan för att lägga till i din kalender.</p>
          <p style="color:#6c757d;font-size:0.875rem">Skickat från VårdNära</p>`
 
-    // 6. Send to each member
-    const fromName = config.fromName || 'VårdNära'
+    // Send to each member individually so one bad address doesn't block the rest
     for (const m of memberships) {
       try {
-        await transport.sendMail({
-          from: `"${fromName}" <${config.username}>`,
+        await resend.emails.send({
+          from: FROM,
           to: m.user.email,
           subject,
           html,
           attachments: [
             {
               filename: 'invite.ics',
-              content: icsContent,
+              content: Buffer.from(icsContent).toString('base64'),
               contentType: `text/calendar; method=${params.method}; charset=utf-8`,
             },
           ],
         })
       } catch (err) {
-        // Log per-recipient failure but continue sending to others
         console.error(`[calendar] Failed to send to ${m.user.email}:`, err)
       }
     }
