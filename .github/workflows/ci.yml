@@ -48,10 +48,17 @@ jobs:
           node --version
           npm --version
           corepack --version 2>/dev/null || echo "corepack not available"
-          corepack status 2>/dev/null || echo "corepack status unavailable"
 
       - name: Install dependencies
-        run: npm ci --loglevel verbose 2>&1
+        run: |
+          npm ci 2>&1 | tee /tmp/npm-install.log; STATUS=${PIPESTATUS[0]}
+          if [ $STATUS -ne 0 ]; then
+            echo "::error::npm ci FAILED — error output below:"
+            grep -E "npm (ERR|WARN|error)" /tmp/npm-install.log | head -30 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            exit 1
+          fi
 
       - name: Generate Prisma client
         run: npx prisma generate --schema=packages/db/prisma/schema.prisma
