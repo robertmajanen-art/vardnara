@@ -43,6 +43,40 @@ type DisplayToken = {
   createdAt: string
 }
 
+type EmailConfig = {
+  provider: 'gmail' | 'office365' | 'custom'
+  host: string
+  port: number
+  secure: boolean
+  username: string
+  fromName: string
+  hasPassword: boolean
+}
+
+const EMAIL_PROVIDERS: Array<{
+  value: EmailConfig['provider']
+  label: string
+  defaults: Partial<EmailConfig>
+  hint?: string
+}> = [
+  {
+    value: 'gmail',
+    label: 'Gmail',
+    defaults: { host: 'smtp.gmail.com', port: 587, secure: false },
+    hint: 'Gmail kräver ett App-lösenord. Aktivera tvåfaktorsautentisering i ditt Google-konto och skapa sedan ett App-lösenord under Säkerhet → App-lösenord.',
+  },
+  {
+    value: 'office365',
+    label: 'Office 365 / Outlook',
+    defaults: { host: 'smtp.office365.com', port: 587, secure: false },
+  },
+  {
+    value: 'custom',
+    label: 'Anpassad SMTP',
+    defaults: { port: 587, secure: false },
+  },
+]
+
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const CARE_TYPE_LABELS: Record<string, string> = {
@@ -146,6 +180,20 @@ export default function SettingsPage({ params }: { params: { groupId: string } }
   const [displayError, setDisplayError]       = useState('')
   const [revokingDisplayId, setRevokingDisplayId] = useState<string | null>(null)
 
+  // ── Email / calendar config ──
+  const [emailCfg, setEmailCfg]           = useState<EmailConfig>({
+    provider: 'gmail', host: 'smtp.gmail.com', port: 587, secure: false,
+    username: '', fromName: 'VårdNära', hasPassword: false,
+  })
+  const [emailPassword, setEmailPassword] = useState('')
+  const [emailLoaded, setEmailLoaded]     = useState(false)
+  const [emailSaving, setEmailSaving]     = useState(false)
+  const [emailSaved, setEmailSaved]       = useState(false)
+  const [emailError, setEmailError]       = useState('')
+  const [emailTesting, setEmailTesting]   = useState(false)
+  const [emailTestMsg, setEmailTestMsg]   = useState('')
+  const [emailTestOk, setEmailTestOk]     = useState<boolean | null>(null)
+
   // ── Fetch everything ──────────────────────────────────────────────────────
   useEffect(() => {
     api.get<Group>(`/api/groups/${params.groupId}`).then((g) => {
@@ -161,6 +209,13 @@ export default function SettingsPage({ params }: { params: { groupId: string } }
     if (!isLead(group)) return
     api.get<Invite[]>(`/api/groups/${params.groupId}/invites`).then(setInvites).catch(() => {})
     api.get<DisplayToken[]>(`/api/groups/${params.groupId}/display-tokens`).then(setDisplayTokens).catch(() => {})
+    // Load email config
+    api.get<EmailConfig | null>(`/api/groups/${params.groupId}/email-config`)
+      .then(cfg => {
+        if (cfg) setEmailCfg(cfg)
+        setEmailLoaded(true)
+      })
+      .catch(() => setEmailLoaded(true))
   }, [group, params.groupId])
 
   // ── Group save ────────────────────────────────────────────────────────────
@@ -258,6 +313,61 @@ export default function SettingsPage({ params }: { params: { groupId: string } }
     } finally {
       setRevokingDisplayId(null)
     }
+  }
+
+  // ── Email config save ─────────────────────────────────────────────────────
+  async function handleEmailSave(e: React.FormEvent) {
+    e.preventDefault()
+    setEmailError('')
+    setEmailSaved(false)
+    setEmailTestMsg('')
+    setEmailSaving(true)
+    try {
+      const body: Record<string, unknown> = {
+        provider: emailCfg.provider,
+        host: emailCfg.host,
+        port: emailCfg.port,
+        secure: emailCfg.secure,
+        username: emailCfg.username,
+        fromName: emailCfg.fromName,
+      }
+      if (emailPassword.trim()) body.password = emailPassword.trim()
+      const updated = await api.put<EmailConfig>(
+        `/api/groups/${params.groupId}/email-config`, body,
+      )
+      setEmailCfg(updated)
+      setEmailPassword('')
+      setEmailSaved(true)
+      setTimeout(() => setEmailSaved(false), 4000)
+    } catch (e: unknown) {
+      setEmailError(e instanceof Error ? e.message : 'Något gick fel vid sparande.')
+    } finally {
+      setEmailSaving(false)
+    }
+  }
+
+  async function handleEmailTest() {
+    setEmailTestMsg('')
+    setEmailTestOk(null)
+    setEmailTesting(true)
+    try {
+      const res = await api.post<{ ok: boolean; message?: string }>(
+        `/api/groups/${params.groupId}/email-config/test`, {},
+      )
+      setEmailTestOk(res.ok)
+      setEmailTestMsg(res.message ?? (res.ok ? 'Testmail skickat!' : 'Misslyckades'))
+    } catch (e: unknown) {
+      setEmailTestOk(false)
+      setEmailTestMsg(e instanceof Error ? e.message : 'Anslutning misslyckades')
+    } finally {
+      setEmailTesting(false)
+    }
+  }
+
+  function applyProviderDefaults(provider: EmailConfig['provider']) {
+    const p = EMAIL_PROVIDERS.find(x => x.value === provider)
+    if (!p) return
+    setEmailCfg(prev => ({ ...prev, provider, ...p.defaults }))
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -475,6 +585,137 @@ export default function SettingsPage({ params }: { params: { groupId: string } }
             <button type="submit" className={s.inviteBtn} disabled={creatingDisplay}>
               {creatingDisplay ? 'Skapar...' : '📺 Skapa ny skärmlänk'}
             </button>
+          </form>
+        </section>
+      )}
+
+      {/* ── E-post & Kalenderinbjudningar (LEAD only) ──────────── */}
+      {isLead(group) && emailLoaded && (
+        <section className={s.section}>
+          <div className={s.sectionHeader}>
+            <h2>E-post &amp; Kalenderinbjudningar</h2>
+          </div>
+          <p className={s.sectionDesc}>
+            Konfigurera e-post för att automatiskt skicka kalenderinbjudningar till alla
+            samordnare, medvårdare och observatörer när ett besök skapas, ändras eller tas bort.
+            Inbjudningarna är kompatibla med Outlook, Gmail och Apple Calendar.
+          </p>
+
+          <form onSubmit={handleEmailSave} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {/* Provider selector */}
+            <label className={s.emailLabel}>
+              E-postleverantör
+              <select
+                value={emailCfg.provider}
+                onChange={e => applyProviderDefaults(e.target.value as EmailConfig['provider'])}
+                className={s.emailInput}
+              >
+                {EMAIL_PROVIDERS.map(p => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
+                ))}
+              </select>
+            </label>
+
+            {/* Provider-specific hint */}
+            {EMAIL_PROVIDERS.find(p => p.value === emailCfg.provider)?.hint && (
+              <p style={{ margin: 0, padding: '0.75rem', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8, fontSize: '0.8125rem', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+                ℹ️ {EMAIL_PROVIDERS.find(p => p.value === emailCfg.provider)?.hint}
+              </p>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.75rem', alignItems: 'end' }}>
+              <label className={s.emailLabel} style={{ margin: 0 }}>
+                SMTP-server
+                <input
+                  type="text"
+                  value={emailCfg.host}
+                  onChange={e => setEmailCfg(p => ({ ...p, host: e.target.value }))}
+                  className={s.emailInput}
+                  placeholder="smtp.example.com"
+                  required
+                />
+              </label>
+              <label className={s.emailLabel} style={{ margin: 0 }}>
+                Port
+                <input
+                  type="number"
+                  value={emailCfg.port}
+                  onChange={e => setEmailCfg(p => ({ ...p, port: Number(e.target.value) }))}
+                  className={s.emailInput}
+                  style={{ width: '5rem' }}
+                  min={1} max={65535}
+                  required
+                />
+              </label>
+            </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+              <input
+                type="checkbox"
+                checked={emailCfg.secure}
+                onChange={e => setEmailCfg(p => ({ ...p, secure: e.target.checked }))}
+              />
+              SSL/TLS (port 465) — avmarkerat = STARTTLS (port 587)
+            </label>
+
+            <label className={s.emailLabel}>
+              Användarnamn / e-postadress
+              <input
+                type="email"
+                value={emailCfg.username}
+                onChange={e => setEmailCfg(p => ({ ...p, username: e.target.value }))}
+                className={s.emailInput}
+                placeholder="ditt@foretag.se"
+                required
+              />
+            </label>
+
+            <label className={s.emailLabel}>
+              Lösenord {emailCfg.hasPassword && <span className={s.optional}>(lämna tomt för att behålla befintligt)</span>}
+              <input
+                type="password"
+                value={emailPassword}
+                onChange={e => setEmailPassword(e.target.value)}
+                className={s.emailInput}
+                placeholder={emailCfg.hasPassword ? '••••••••' : 'Ange lösenord eller App-lösenord'}
+                autoComplete="new-password"
+              />
+            </label>
+
+            <label className={s.emailLabel}>
+              Avsändarnamn
+              <input
+                type="text"
+                value={emailCfg.fromName}
+                onChange={e => setEmailCfg(p => ({ ...p, fromName: e.target.value }))}
+                className={s.emailInput}
+                placeholder="VårdNära"
+              />
+            </label>
+
+            {emailError && <p className={s.errorMsg}>{emailError}</p>}
+            {emailSaved && <p className={s.successMsg}>✅ E-postkonfiguration sparad.</p>}
+
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <button type="submit" className={s.inviteBtn} disabled={emailSaving} style={{ flex: 1 }}>
+                {emailSaving ? 'Sparar...' : '💾 Spara e-postkonfiguration'}
+              </button>
+              <button
+                type="button"
+                className={s.editBtn}
+                onClick={handleEmailTest}
+                disabled={emailTesting}
+                title="Testar anslutningen och skickar ett testmail till konfigurerad adress"
+              >
+                {emailTesting ? 'Testar...' : '📧 Testa anslutning'}
+              </button>
+            </div>
+
+            {emailTestMsg && (
+              <p style={{ margin: 0, fontSize: '0.875rem', color: emailTestOk ? 'var(--color-success, #198754)' : 'var(--color-danger, #dc3545)' }}>
+                {emailTestOk ? '✅' : '❌'} {emailTestMsg}
+              </p>
+            )}
           </form>
         </section>
       )}

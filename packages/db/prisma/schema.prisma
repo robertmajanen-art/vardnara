@@ -174,8 +174,27 @@ model CareGroup {
   notifications      Notification[]
   feedItems          FeedItem[]
   auditLogs          AuditLog[]
+  emailConfig        EmailConfig?
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
+}
+
+// Per-group SMTP configuration for calendar invites and invite emails
+model EmailConfig {
+  id        String    @id @default(cuid())
+  groupId   String    @unique
+  group     CareGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  provider  String    @default("custom")   // "gmail" | "office365" | "custom"
+  host      String    @default("")
+  port      Int       @default(587)
+  secure    Boolean   @default(false)      // true = SSL/TLS on port 465; false = STARTTLS on 587
+  username  String    @default("")         // SMTP login (usually the sending email address)
+  password  String    @default("")         // SMTP password or App Password
+  fromName  String    @default("VårdNära") // Display name in the From header
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([groupId])
 }
 
 // Membership = User ↔ CareGroup join with role

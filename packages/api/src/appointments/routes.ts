@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify'
 import { tenantMiddleware, requireRole } from '../middleware/tenant'
 import { Role, type MembershipRepository } from '../types/index'
 import { createFeedItem } from '../services/feed'
+import { sendCalendarInvites } from '../email/calendarService'
 import {
   CreateAppointmentBody,
   UpdateAppointmentBody,
@@ -83,6 +84,25 @@ export const appointmentRoutes: FastifyPluginAsync = async (fastify) => {
         },
       })
       await createFeedItem(db, fastify.io, req.params.groupId, req.tenant.userId, 'APPOINTMENT_CREATED', { appointmentId: appointment.id }, `Nytt besök: ${appointment.title}`)
+
+      // Send calendar invites to group members (fire-and-forget, never blocks response)
+      const group = await db.careGroup.findUnique({
+        where: { id: req.params.groupId },
+        select: { name: true },
+      })
+      const organizer = await db.user.findUnique({
+        where: { id: req.tenant.userId },
+        select: { email: true },
+      })
+      void sendCalendarInvites(db, {
+        appointment,
+        groupId: req.params.groupId,
+        groupName: group?.name ?? '',
+        organizerEmail: organizer?.email ?? '',
+        method: 'REQUEST',
+        sequence: 0,
+      })
+
       return reply.code(201).send(appointment)
     },
   )
@@ -125,6 +145,25 @@ export const appointmentRoutes: FastifyPluginAsync = async (fastify) => {
           ...(transportPersonName !== undefined && { transportPersonName }),
         },
       })
+
+      // Send calendar update to group members
+      const groupUpd = await db.careGroup.findUnique({
+        where: { id: req.params.groupId },
+        select: { name: true },
+      })
+      const organizerUpd = await db.user.findUnique({
+        where: { id: req.tenant.userId },
+        select: { email: true },
+      })
+      void sendCalendarInvites(db, {
+        appointment,
+        groupId: req.params.groupId,
+        groupName: groupUpd?.name ?? '',
+        organizerEmail: organizerUpd?.email ?? '',
+        method: 'REQUEST',
+        sequence: 1,
+      })
+
       return reply.send(appointment)
     },
   )
@@ -156,9 +195,35 @@ export const appointmentRoutes: FastifyPluginAsync = async (fastify) => {
     '/:groupId/appointments/:appointmentId',
     { onRequest: [fastify.authenticate], preHandler: [mwSupporter()] },
     async (req, reply) => {
+      // Fetch data before deletion so we can send a cancellation invite
+      const aptToDelete = await db.appointment.findUnique({
+        where: { id: req.params.appointmentId, groupId: req.params.groupId },
+      })
+
       await db.appointment.delete({
         where: { id: req.params.appointmentId, groupId: req.params.groupId },
       })
+
+      // Send calendar cancellation to group members
+      if (aptToDelete) {
+        const groupDel = await db.careGroup.findUnique({
+          where: { id: req.params.groupId },
+          select: { name: true },
+        })
+        const organizerDel = await db.user.findUnique({
+          where: { id: req.tenant.userId },
+          select: { email: true },
+        })
+        void sendCalendarInvites(db, {
+          appointment: aptToDelete,
+          groupId: req.params.groupId,
+          groupName: groupDel?.name ?? '',
+          organizerEmail: organizerDel?.email ?? '',
+          method: 'CANCEL',
+          sequence: 2,
+        })
+      }
+
       return reply.code(204).send()
     },
   )

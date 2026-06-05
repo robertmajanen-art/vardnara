@@ -71,6 +71,38 @@ async function applyPendingMigrations(prisma: PrismaClient) {
       await prisma.$executeRaw`ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS "completedDates" TEXT DEFAULT ''`
       console.log('[prisma] Migration applied.')
     }
+
+    // 20260605000001_email_config — per-group SMTP configuration for calendar invites
+    const ecRows = await prisma.$queryRaw<{ table_name: string }[]>`
+      SELECT table_name
+      FROM information_schema.tables
+      WHERE table_name = 'EmailConfig'
+        AND table_schema = 'public'
+    `
+    if (ecRows.length === 0) {
+      console.log('[prisma] Applying migration: 20260605000001_email_config')
+      await prisma.$executeRaw`
+        CREATE TABLE IF NOT EXISTS "EmailConfig" (
+          "id"        TEXT         NOT NULL,
+          "groupId"   TEXT         NOT NULL,
+          "provider"  TEXT         NOT NULL DEFAULT 'custom',
+          "host"      TEXT         NOT NULL DEFAULT '',
+          "port"      INTEGER      NOT NULL DEFAULT 587,
+          "secure"    BOOLEAN      NOT NULL DEFAULT false,
+          "username"  TEXT         NOT NULL DEFAULT '',
+          "password"  TEXT         NOT NULL DEFAULT '',
+          "fromName"  TEXT         NOT NULL DEFAULT 'VårdNära',
+          "createdAt" TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "EmailConfig_pkey"       PRIMARY KEY ("id"),
+          CONSTRAINT "EmailConfig_groupId_key" UNIQUE      ("groupId"),
+          CONSTRAINT "EmailConfig_groupId_fkey"
+            FOREIGN KEY ("groupId") REFERENCES "CareGroup"("id")
+            ON DELETE CASCADE ON UPDATE CASCADE
+        )
+      `
+      console.log('[prisma] Migration applied.')
+    }
   } catch (err) {
     console.error('[prisma] Migration error (non-fatal):', err)
   }
