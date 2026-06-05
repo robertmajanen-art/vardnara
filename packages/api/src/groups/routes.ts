@@ -247,6 +247,38 @@ export const groupRoutes: FastifyPluginAsync = async (fastify) => {
     },
   )
 
+  // POST /api/groups/:groupId/invites/:inviteId/resend — resend invite email (LEAD only)
+  fastify.post<{ Params: InviteParams }>(
+    '/:groupId/invites/:inviteId/resend',
+    { onRequest: [fastify.authenticate], preHandler: [tenantMiddleware(db.membership as unknown as MembershipRepository, Role.LEAD)] },
+    async (req, reply) => {
+      const { groupId, inviteId } = req.params
+
+      const invite = await db.invite.findUnique({
+        where: { id: inviteId, groupId },
+        select: { id: true, email: true, token: true, status: true, expiresAt: true },
+      })
+
+      if (!invite) {
+        return reply.code(404).send({ statusCode: 404, error: 'Not Found', message: 'Inbjudan hittades inte' })
+      }
+      if (invite.status !== 'PENDING' || invite.expiresAt < new Date()) {
+        return reply.code(410).send({ statusCode: 410, error: 'Gone', message: 'Inbjudan är inte längre giltig' })
+      }
+      if (!invite.email) {
+        return reply.code(400).send({ statusCode: 400, error: 'Bad Request', message: 'Inbjudan saknar e-postadress' })
+      }
+
+      const group = await db.careGroup.findUniqueOrThrow({
+        where: { id: groupId },
+        select: { name: true },
+      })
+
+      await fastify.mailer.sendInviteEmail(invite.email, invite.token, group.name)
+      return reply.code(204).send()
+    },
+  )
+
   // DELETE /api/groups/:groupId/invites/:inviteId — revoke invite (LEAD only)
   fastify.delete<{ Params: InviteParams }>(
     '/:groupId/invites/:inviteId',

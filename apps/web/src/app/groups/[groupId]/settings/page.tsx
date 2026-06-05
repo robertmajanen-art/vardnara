@@ -138,6 +138,8 @@ export default function SettingsPage({ params }: { params: { groupId: string } }
   const [inviteError, setInviteError]   = useState('')
   const [newInvite, setNewInvite]       = useState<Invite | null>(null)
   const [revokingId, setRevokingId]     = useState<string | null>(null)
+  const [resendingId, setResendingId]   = useState<string | null>(null)
+  const [resentId, setResentId]         = useState<string | null>(null)
 
   // ── Display tokens ──
   const [displayTokens, setDisplayTokens]     = useState<DisplayToken[]>([])
@@ -223,6 +225,21 @@ export default function SettingsPage({ params }: { params: { groupId: string } }
       alert(e instanceof Error ? e.message : 'Kunde inte återkalla inbjudan.')
     } finally {
       setRevokingId(null)
+    }
+  }
+
+  // ── Resend invite email ───────────────────────────────────────────────────
+  async function handleResendInvite(inviteId: string) {
+    setResendingId(inviteId)
+    setResentId(null)
+    try {
+      await api.post(`/api/groups/${params.groupId}/invites/${inviteId}/resend`, {})
+      setResentId(inviteId)
+      setTimeout(() => setResentId(null), 3000)
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Kunde inte skicka e-post.')
+    } finally {
+      setResendingId(null)
     }
   }
 
@@ -410,6 +427,13 @@ export default function SettingsPage({ params }: { params: { groupId: string } }
                     </div>
                     <div className={s.pendingActions}>
                       <CopyBtn text={inviteUrl(inv.token)} />
+                      {inv.email && (
+                        <button className={s.resendBtn}
+                          onClick={() => handleResendInvite(inv.id)}
+                          disabled={resendingId === inv.id}>
+                          {resendingId === inv.id ? '…' : resentId === inv.id ? '✓ Skickat!' : '✉️ Skicka e-post'}
+                        </button>
+                      )}
                       <button className={s.revokeBtn}
                         onClick={() => handleRevokeInvite(inv.id)}
                         disabled={revokingId === inv.id}>
